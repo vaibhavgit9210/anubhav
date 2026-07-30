@@ -24,7 +24,7 @@
     position: fixed; inset: 0; z-index: 10;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 14px; padding: 24px; text-align: center;
-    background: radial-gradient(ellipse at 50% 40%, #14102a 0%, #07060c 70%);
+    background: radial-gradient(ellipse at 50% 42%, rgba(16,13,34,0.42) 0%, rgba(7,6,12,0.18) 70%);
     transition: opacity .5s ease;
   }
   #home.hidden { opacity: 0; pointer-events: none; }
@@ -146,6 +146,7 @@ function resize() {
   canvas.width = Math.round(W * DPR);
   canvas.height = Math.round(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  stars = null; // regenerate the starfield for the new size
   if (renderShot) renderShot();
 }
 window.addEventListener("resize", resize);
@@ -211,6 +212,7 @@ function stopViz() {
   hud.classList.remove("on");
   home.classList.remove("hidden");
   ctx.clearRect(0, 0, W, H);
+  startIdle();
 }
 
 /* ---------------- analysis ---------------- */
@@ -874,6 +876,73 @@ function drawReadout() {
   for (var i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, y + 16 + i * 14);
 }
 
+/* ---------------- ambient: space + aurora while idle ----------------
+   runs on the landing screen before any audio source is granted —
+   twinkling starfield under slow aurora curtains.                    */
+var stars = null;
+function initStars() {
+  stars = [];
+  var n = Math.round(W * H / 14000) + 40;
+  for (var i = 0; i < n; i++)
+    stars.push([Math.random() * W, Math.random() * H, 0.4 + Math.random() * 1.3, Math.random() * TAU, 0.4 + Math.random() * 1.6]);
+}
+var AURORA = [
+  { col: "124,255,178", yb: 0.30, amp: 0.10, k: 0.0045, sp: 0.62, h: 0.34, ph: 0.0 },
+  { col: "45,212,191",  yb: 0.40, amp: 0.13, k: 0.0032, sp: 0.94, h: 0.30, ph: 2.1 },
+  { col: "189,147,249", yb: 0.30, amp: 0.09, k: 0.0060, sp: 0.45, h: 0.42, ph: 4.2 },
+  { col: "247,118,142", yb: 0.48, amp: 0.07, k: 0.0026, sp: 0.74, h: 0.20, ph: 1.1 }
+];
+function drawIdle(t) {
+  if (!stars) initStars();
+  var i, x, y;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "rgba(4,6,13,0.35)";
+  ctx.fillRect(0, 0, W, H);
+
+  for (i = 0; i < stars.length; i++) {
+    var s = stars[i];
+    var tw = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * s[4] + s[3]));
+    ctx.fillStyle = "rgba(220,230,255," + (tw * 0.8) + ")";
+    ctx.fillRect(s[0], s[1], s[2], s[2]);
+  }
+
+  ctx.globalCompositeOperation = "lighter";
+  for (var b = 0; b < AURORA.length; b++) {
+    var A = AURORA[b];
+    var h = H * A.h;
+    var grad = ctx.createLinearGradient(0, -h, 0, 0);
+    grad.addColorStop(0, "rgba(" + A.col + ",0)");
+    grad.addColorStop(0.72, "rgba(" + A.col + ",0.10)");
+    grad.addColorStop(1, "rgba(" + A.col + ",0.26)");
+    ctx.fillStyle = grad;
+    var step = 7;
+    function curve(px) {
+      return H * A.yb
+        + Math.sin(px * A.k + t * A.sp + A.ph) * H * A.amp
+        + Math.sin(px * A.k * 2.7 + t * A.sp * 1.6 + A.ph * 2) * H * A.amp * 0.4;
+    }
+    for (x = 0; x <= W; x += step) {
+      y = curve(x);
+      // per-column shimmer — the curtain "rays"
+      ctx.globalAlpha = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(x * 0.013 + t * (0.7 + b * 0.23) + A.ph * 3));
+      ctx.save(); ctx.translate(x, y); ctx.fillRect(0, -h, step, h); ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    for (x = 0; x <= W; x += 10) {
+      y = curve(x);
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = "rgba(" + A.col + ",0.25)";
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = "source-over";
+}
+var idleOn = false;
+function idleLoop(ts) { if (!idleOn) return; drawIdle(ts / 1000); requestAnimationFrame(idleLoop); }
+function startIdle() { if (idleOn) return; idleOn = true; requestAnimationFrame(idleLoop); }
+
 /* ---------------- style registry ---------------- */
 var STYLES = [
   { key: "bloom",    draw: drawBloom,    init: function () { parts.length = 0; },
@@ -932,6 +1001,7 @@ function startViz(label) {
   hud.classList.add("on");
   hud.classList.remove("faded");
   bumpHud();
+  idleOn = false;
   setStyle(styleIdx, false);
   running = true;
   t0 = performance.now();
@@ -994,9 +1064,19 @@ window.addEventListener("keydown", function (e) {
    #shot=viz&style=<key>      → specific style (bloom|scope|chladni|fourier|helix)
    ================================================================ */
 (function () {
-  var m = location.hash.match(/#shot=viz(?:&style=(\w+))?/);
-  if (!m) return;
-  var want = STYLES.findIndex(function (s) { return s.key === m[1]; });
+  var m = location.hash.match(/#shot=(home|viz)(?:&style=(\w+))?/);
+  if (!m) { startIdle(); return; }
+  if (m[1] === "home") {
+    renderShot = function () {
+      var seed = 42;
+      Math.random = function () { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+      stars = null;
+      for (var f = 0; f < 180; f++) drawIdle(f / 60);
+    };
+    renderShot();
+    return;
+  }
+  var want = STYLES.findIndex(function (s) { return s.key === m[2]; });
   home.classList.add("hidden");
   hud.classList.add("on");
   srcLabel.textContent = "listening: demo";

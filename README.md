@@ -35,7 +35,9 @@ RMS, bass/mid/treble bands, beat detection (bass vs ~0.7 s rolling average, gate
 
 rAF never fires under `--virtual-time-budget`, so the hooks render synchronously without it:
 
-- `#shot=home` — landing screen
+The landing screen is alive before any audio starts: a twinkling starfield under slow aurora-borealis curtains (per-column shimmer + bright lower edge), paused automatically while a visualizer runs.
+
+- `#shot=home` — landing screen (renders the aurora synchronously)
 - `#shot=viz` — visualizer driven by ~3.5 s of synthetic music (120 bpm kick + A-minor chord + drifting spectral tail), deterministic (seeded RNG)
 - `#shot=viz&style=<key>` — specific style: `bloom|scope|chladni|fourier|helix|manifold|waves`
 
