@@ -146,7 +146,7 @@ function resize() {
   canvas.width = Math.round(W * DPR);
   canvas.height = Math.round(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  stars = null; // regenerate the starfield for the new size
+  stars = null; blooms = null; // regenerate the ambient field for the new size
   if (renderShot) renderShot();
 }
 window.addEventListener("resize", resize);
@@ -882,58 +882,72 @@ function drawReadout() {
 var stars = null;
 function initStars() {
   stars = [];
-  var n = Math.round(W * H / 14000) + 40;
+  var n = Math.round(W * H / 16000) + 40;
+  var maxR = Math.hypot(W, H) / 2;
   for (var i = 0; i < n; i++)
-    stars.push([Math.random() * W, Math.random() * H, 0.4 + Math.random() * 1.3, Math.random() * TAU, 0.4 + Math.random() * 1.6]);
+    stars.push([Math.random() * TAU, 20 + Math.random() * maxR, 0.4 + Math.random() * 1.3, Math.random() * TAU, 0.4 + Math.random() * 1.6]);
 }
-var AURORA = [
-  { col: "124,255,178", yb: 0.30, amp: 0.10, k: 0.0045, sp: 0.62, h: 0.34, ph: 0.0 },
-  { col: "45,212,191",  yb: 0.40, amp: 0.13, k: 0.0032, sp: 0.94, h: 0.30, ph: 2.1 },
-  { col: "189,147,249", yb: 0.30, amp: 0.09, k: 0.0060, sp: 0.45, h: 0.42, ph: 4.2 },
-  { col: "247,118,142", yb: 0.48, amp: 0.07, k: 0.0026, sp: 0.74, h: 0.20, ph: 1.1 }
-];
+var BLOOM_COLS = ["124,255,178", "45,212,191", "189,147,249", "247,118,142", "125,211,252"];
+var blooms = null, bloomIdx = 0;
+function newBloom(born) {
+  return { born: born, col: BLOOM_COLS[bloomIdx++ % BLOOM_COLS.length],
+           a3: 0.05 + Math.random() * 0.05, a5: 0.03 + Math.random() * 0.04,
+           p3: Math.random() * TAU, p5: Math.random() * TAU };
+}
+function initBlooms() {
+  blooms = [];
+  for (var i = 0; i < 8; i++) blooms.push(newBloom(-i * 1.35));
+}
 function drawIdle(t) {
   if (!stars) initStars();
-  var i, x, y;
+  if (!blooms) initBlooms();
+  var cx = W / 2, cy = H / 2, maxR = Math.hypot(W, H) * 0.52;
+  var i;
   ctx.globalCompositeOperation = "source-over";
-  ctx.fillStyle = "rgba(4,6,13,0.35)";
+  ctx.fillStyle = "rgba(4,6,13,0.30)";
   ctx.fillRect(0, 0, W, H);
 
+  // starfield streaming gently outward — slow warp
   for (i = 0; i < stars.length; i++) {
     var s = stars[i];
+    s[1] *= 1.0016;
+    if (s[1] > maxR) { s[0] = Math.random() * TAU; s[1] = 14 + Math.random() * 60; }
     var tw = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * s[4] + s[3]));
-    ctx.fillStyle = "rgba(220,230,255," + (tw * 0.8) + ")";
-    ctx.fillRect(s[0], s[1], s[2], s[2]);
+    var depth = 0.25 + 0.75 * (s[1] / maxR);
+    ctx.fillStyle = "rgba(220,230,255," + (tw * 0.8 * depth) + ")";
+    ctx.fillRect(cx + Math.cos(s[0]) * s[1], cy + Math.sin(s[0]) * s[1], s[2], s[2]);
   }
 
+  // the source, breathing at the centre
+  var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 130);
+  g.addColorStop(0, "rgba(189,147,249," + (0.10 + 0.05 * Math.sin(t * 0.8)) + ")");
+  g.addColorStop(1, "rgba(189,147,249,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(cx - 130, cy - 130, 260, 260);
+
+  // aurora rings blooming from the centre toward the viewer —
+  // exponential growth reads as perspective approach
   ctx.globalCompositeOperation = "lighter";
-  for (var b = 0; b < AURORA.length; b++) {
-    var A = AURORA[b];
-    var h = H * A.h;
-    var grad = ctx.createLinearGradient(0, -h, 0, 0);
-    grad.addColorStop(0, "rgba(" + A.col + ",0)");
-    grad.addColorStop(0.72, "rgba(" + A.col + ",0.10)");
-    grad.addColorStop(1, "rgba(" + A.col + ",0.26)");
-    ctx.fillStyle = grad;
-    var step = 7;
-    function curve(px) {
-      return H * A.yb
-        + Math.sin(px * A.k + t * A.sp + A.ph) * H * A.amp
-        + Math.sin(px * A.k * 2.7 + t * A.sp * 1.6 + A.ph * 2) * H * A.amp * 0.4;
-    }
-    for (x = 0; x <= W; x += step) {
-      y = curve(x);
-      // per-column shimmer — the curtain "rays"
-      ctx.globalAlpha = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(x * 0.013 + t * (0.7 + b * 0.23) + A.ph * 3));
-      ctx.save(); ctx.translate(x, y); ctx.fillRect(0, -h, step, h); ctx.restore();
-    }
-    ctx.globalAlpha = 1;
+  for (i = 0; i < blooms.length; i++) {
+    var B = blooms[i];
+    var age = t - B.born;
+    if (age < 0) continue;
+    var R = 10 * Math.exp(age * 0.42);
+    if (R > maxR * 1.15) { blooms[i] = newBloom(t); continue; }
+    var fade = Math.min(1, age / 1.4) * Math.min(1, Math.max(0, (maxR * 1.1 - R) / (maxR * 0.45)));
+    var N = 96;
     ctx.beginPath();
-    for (x = 0; x <= W; x += 10) {
-      y = curve(x);
-      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    for (var j = 0; j <= N; j++) {
+      var th = j / N * TAU;
+      var r = R * (1 + B.a3 * Math.sin(3 * th + B.p3 + t * 0.25) + B.a5 * Math.sin(5 * th - t * 0.18 + B.p5));
+      var x = cx + Math.cos(th) * r, y = cy + Math.sin(th) * r * 0.82; // slight ellipse
+      if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = "rgba(" + A.col + ",0.25)";
+    ctx.closePath();
+    ctx.strokeStyle = "rgba(" + B.col + "," + (0.05 * fade) + ")";
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(" + B.col + "," + (0.5 * fade) + ")";
     ctx.lineWidth = 1.4;
     ctx.stroke();
   }
