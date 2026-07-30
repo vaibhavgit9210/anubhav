@@ -21,7 +21,7 @@ Nothing is recorded and nothing leaves the page — the stream feeds a Web Audio
 4. **fourier** — the live waveform DFT'd into 22 epicycles chained tip-to-tip, drawing itself (complex-EMA'd so phases don't jitter)
 5. **helix** — pitch spiral, one turn per octave: same note in every octave lands on one ray with one colour
 6. **manifold** — (spectral centroid, RMS, flux) traced as a wireframe trajectory through R³, axes auto-normalised to the recent range, numeric vertex labels — same idea as the vocal manifold on anime-voice-fights
-7. **waves** — the spectrum split into five instrument-role lanes (SUB · BASS · CHORDS · LEAD · AIR), each a flowing log-frequency wave in its own colour; the bass and lead lanes name their strongest note (E1, C#5…), the chord lane names the triad via chromagram template-matching (Am, F…). Honest framing: these are frequency roles, not ML source separation
+7. **waves** — five instrument-role bands (SUB · BASS · CHORDS · LEAD · AIR) as overlapping flame-like strands: three strokes per band (thick-soft → thin-bright), independent flicker, log-frequency spectrum shaping each ribbon; annotation column names the bass note, lead note, and the chord (24-triad chromagram template match). Honest framing: frequency roles, not ML source separation
 
 Every style carries a scientific readout (top-left): RMS dBFS, spectral centroid, flux, detected key, live BPM estimate (median of recent beat gaps), gate level.
 

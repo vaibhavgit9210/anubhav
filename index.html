@@ -780,64 +780,77 @@ function drawManifold(now) {
    wave in its own colour; bass and lead lanes name their strongest
    note, the chord lane names the triad the chromagram is playing.   */
 var WBANDS = [
-  { name: "AIR",    lo: 4000, hi: 14000, col: "125,211,252", yf: 0.24, k: 0.045, sp: 3.2 },
-  { name: "LEAD",   lo: 500,  hi: 4200,  col: "189,147,249", yf: 0.38, k: 0.030, sp: 2.3 },
-  { name: "CHORDS", lo: 250,  hi: 2000,  col: "45,212,191",  yf: 0.52, k: 0.020, sp: 1.7 },
-  { name: "BASS",   lo: 60,   hi: 250,   col: "224,175,104", yf: 0.66, k: 0.012, sp: 1.2 },
-  { name: "SUB",    lo: 20,   hi: 120,   col: "247,118,142", yf: 0.80, k: 0.008, sp: 0.8 }
+  { name: "AIR",    lo: 4000, hi: 14000, col: "125,211,252", off: -0.10, k: 0.045, sp: 3.2 },
+  { name: "LEAD",   lo: 500,  hi: 4200,  col: "189,147,249", off: -0.05, k: 0.030, sp: 2.3 },
+  { name: "CHORDS", lo: 250,  hi: 2000,  col: "45,212,191",  off:  0.00, k: 0.020, sp: 1.7 },
+  { name: "BASS",   lo: 60,   hi: 250,   col: "224,175,104", off:  0.05, k: 0.012, sp: 1.2 },
+  { name: "SUB",    lo: 20,   hi: 120,   col: "247,118,142", off:  0.10, k: 0.008, sp: 0.8 }
+];
+// per band: [width, base alpha, energy alpha, amp mult, phase shift]
+var WSTRANDS = [
+  [11,  0.05, 0.13, 1.00, 0.0],
+  [4.5, 0.14, 0.30, 0.85, 0.9],
+  [1.1, 0.40, 0.55, 0.68, 1.8]
 ];
 function drawWaves(now) {
-  var minD = Math.min(W, H), binHz = SR / FFT;
+  var binHz = SR / FFT;
   var GF = 0.08 + 0.92 * S.gate;
+  var yC = H * 0.52;
 
   ctx.globalCompositeOperation = "source-over";
-  ctx.fillStyle = "rgba(5,5,9,0.30)";
+  ctx.fillStyle = "rgba(5,4,8,0.18)";
   ctx.fillRect(0, 0, W, H);
 
   ctx.globalCompositeOperation = "lighter";
-  var N = 120;
+  ctx.lineCap = "round";
+  var N = 130;
   for (var b = 0; b < WBANDS.length; b++) {
-    var bd = WBANDS[b], yB = H * bd.yf;
-    // lane energy
+    var bd = WBANDS[b], yB = yC + H * bd.off;
     var a2 = Math.max(1, Math.floor(bd.lo / binHz)), b2 = Math.min(freqByte.length - 1, Math.floor(bd.hi / binHz));
     var e = 0;
     for (var q = a2; q <= b2; q++) e += freqByte[q];
     e /= (b2 - a2 + 1) * 255;
 
-    var amp = H * 0.10 * (1 + S.pulse * 0.4);
-    for (var pass = 0; pass < 2; pass++) {
+    for (var s = 0; s < WSTRANDS.length; s++) {
+      var st = WSTRANDS[s];
+      // every strand flickers on its own — flame, not machine
+      var flick = 1 + 0.22 * Math.sin(now * (7 + b * 1.3 + s * 2.1) + b * 5 + s * 2.7);
+      var amp = H * 0.16 * st[3] * flick * (1 + S.pulse * 0.5);
       ctx.beginPath();
       for (var j = 0; j <= N; j++) {
         var xr = j / N;
-        var f = bd.lo * Math.pow(bd.hi / bd.lo, xr);            // log-frequency across the lane
+        var f = bd.lo * Math.pow(bd.hi / bd.lo, xr);            // log-frequency across the band
         var v = freqByte[Math.min(freqByte.length - 1, Math.floor(f / binHz))] / 255;
-        var y = yB + Math.sin(xr * W * bd.k + now * bd.sp + b * 1.7) * (3 + Math.pow(v, 1.5) * amp);
+        var a = xr * W * bd.k + now * bd.sp + b * 1.7 + st[4];
+        var wob = Math.sin(a) + 0.55 * Math.sin(2.3 * a + 1.7) + 0.3 * Math.sin(4.1 * a + b);
+        var y = yB + wob * (3.5 + Math.pow(v, 1.4) * amp);
         var x = xr * W;
         if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
-      if (pass === 0) { ctx.strokeStyle = "rgba(" + bd.col + "," + ((0.08 + 0.22 * e) * GF) + ")"; ctx.lineWidth = 6; }
-      else { ctx.strokeStyle = "rgba(" + bd.col + "," + ((0.30 + 0.60 * e) * GF) + ")"; ctx.lineWidth = 1.6; }
+      ctx.strokeStyle = "rgba(" + bd.col + "," + ((st[1] + st[2] * e) * GF) + ")";
+      ctx.lineWidth = st[0];
       ctx.stroke();
     }
-
-    // lane label + live annotation
-    ctx.globalCompositeOperation = "source-over";
-    ctx.font = "10px ui-monospace, Menlo, monospace";
-    ctx.textAlign = "left";
-    ctx.fillStyle = "rgba(" + bd.col + "," + ((0.30 + 0.45 * e) * GF) + ")";
-    ctx.fillText(bd.name, 16, yB - 10);
-    var note = bd.name === "BASS" ? S.bassNote
-             : bd.name === "LEAD" ? S.leadNote
-             : bd.name === "CHORDS" ? S.chord
-             : bd.name === "AIR" ? Math.round(S.treble * 100) + "%"
-             : Math.round(S.bass * 100) + "%";
-    ctx.textAlign = "right";
-    ctx.font = "13px ui-monospace, Menlo, monospace";
-    ctx.fillStyle = "rgba(" + bd.col + "," + ((0.45 + 0.5 * e) * GF) + ")";
-    ctx.fillText(note, W - 16, yB - 10);
-    ctx.globalCompositeOperation = "lighter";
   }
+
+  // annotation column, top right under the hud
   ctx.globalCompositeOperation = "source-over";
+  ctx.textAlign = "right";
+  for (b = 0; b < WBANDS.length; b++) {
+    var bd2 = WBANDS[b];
+    var note = bd2.name === "BASS" ? S.bassNote
+             : bd2.name === "LEAD" ? S.leadNote
+             : bd2.name === "CHORDS" ? S.chord
+             : bd2.name === "AIR" ? Math.round(S.treble * 100) + "%"
+             : Math.round(S.bass * 100) + "%";
+    var yA = 64 + b * 17;
+    ctx.font = "10px ui-monospace, Menlo, monospace";
+    ctx.fillStyle = "rgba(" + bd2.col + "," + (0.35 * GF + 0.05) + ")";
+    ctx.fillText(bd2.name, W - 70, yA);
+    ctx.font = "12px ui-monospace, Menlo, monospace";
+    ctx.fillStyle = "rgba(" + bd2.col + "," + (0.75 * GF + 0.05) + ")";
+    ctx.fillText(note, W - 16, yA);
+  }
 }
 
 /* ---------------- scientific readout, drawn over every style ---------------- */
