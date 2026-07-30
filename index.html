@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>anubhav — feel your music</title>
+<meta name="description" content="Point it at whatever you're listening to and watch the music breathe — amplitude, spectrum and harmony turned into light.">
+<meta name="theme-color" content="#07060c">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌀</text></svg>">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: #07060c;
+    color: #e8e4f0;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* ---------- landing ---------- */
+  #home {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; padding: 24px; text-align: center;
+    background: radial-gradient(ellipse at 50% 40%, #14102a 0%, #07060c 70%);
+    transition: opacity .5s ease;
+  }
+  #home.hidden { opacity: 0; pointer-events: none; }
+  #home h1 {
+    font-size: clamp(44px, 10vw, 84px); font-weight: 400; letter-spacing: .02em;
+    background: linear-gradient(100deg, #8be9fd, #bd93f9 45%, #ff79c6 90%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    line-height: 1.15;
+  }
+  #home .hindi { display: block; font-size: .42em; opacity: .85; letter-spacing: .3em; margin-top: 2px; }
+  #home p.tag { max-width: 520px; opacity: .65; font-size: clamp(13px, 3.4vw, 15px); line-height: 1.6; margin-bottom: 18px; }
+  .src-btn {
+    appearance: none; border: 1px solid rgba(189,147,249,.35); border-radius: 14px;
+    background: rgba(189,147,249,.08); color: #e8e4f0;
+    font: inherit; font-size: clamp(15px, 4vw, 17px);
+    padding: 16px 26px; min-width: min(340px, 82vw);
+    cursor: pointer; transition: background .2s, border-color .2s, transform .1s;
+    display: flex; align-items: center; gap: 14px; text-align: left;
+  }
+  .src-btn:hover { background: rgba(189,147,249,.18); border-color: rgba(189,147,249,.7); }
+  .src-btn:active { transform: scale(.98); }
+  .src-btn .ico { font-size: 26px; }
+  .src-btn small { display: block; opacity: .55; font-size: .74em; margin-top: 3px; line-height: 1.4; }
+  #err {
+    color: #ff9580; font-size: 13px; max-width: 460px; line-height: 1.5; min-height: 20px;
+    white-space: pre-line;
+  }
+  #home .foot { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); font-size: 11px; opacity: .35; letter-spacing: .05em; }
+
+  /* ---------- in-viz chrome ---------- */
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+    display: none; align-items: center; gap: 10px;
+    padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+    transition: opacity .4s; font-size: 12px;
+  }
+  #hud.on { display: flex; }
+  #hud.faded { opacity: 0; pointer-events: none; }
+  #hud .pill {
+    background: rgba(7,6,12,.55); border: 1px solid rgba(232,228,240,.15);
+    border-radius: 999px; padding: 7px 14px; backdrop-filter: blur(6px);
+  }
+  #hud button.pill { color: #e8e4f0; font: inherit; cursor: pointer; appearance: none; }
+  #hud button.pill:hover { border-color: rgba(232,228,240,.5); }
+  #srcLabel { opacity: .8; }
+  #hud .gap { flex: 1; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="home">
+  <h1>anubhav<span class="hindi">अनुभव</span></h1>
+  <p class="tag">play your music anywhere — speakers, another tab, another app — and watch it breathe. nothing is recorded, nothing leaves this page.</p>
+  <button class="src-btn" id="btnMic">
+    <span class="ico">🎤</span>
+    <span>microphone<small>music on speakers — works on any device</small></span>
+  </button>
+  <button class="src-btn" id="btnTab" hidden>
+    <span class="ico">🖥️</span>
+    <span>tab / screen audio<small>music on headphones — pick the tab that's playing and tick “share tab audio”</small></span>
+  </button>
+  <div id="err"></div>
+  <div class="foot">web audio api · everything stays on your device</div>
+</div>
+
+<div id="hud">
+  <span class="pill" id="srcLabel"></span>
+  <span class="gap"></span>
+  <button class="pill" id="btnFs">⛶ fullscreen</button>
+  <button class="pill" id="btnStop">✕ stop</button>
+</div>
+
+<script>
+"use strict";
+/* ================================================================
+   anubhav — realtime music visualizer
+   sources: microphone (everywhere) or tab/screen audio (desktop chromium)
+   analysis: rms amplitude, bass/mid/treble bands, beat detection,
+             12-bin chromagram (harmony → colour)
+   ================================================================ */
+
+var canvas = document.getElementById("canvas");
+var ctx = canvas.getContext("2d");
+var home = document.getElementById("home");
+var hud = document.getElementById("hud");
+var errBox = document.getElementById("err");
+var srcLabel = document.getElementById("srcLabel");
+
+var W = 0, H = 0, DPR = 1;
+var renderShot = null; // set by the screenshot hook; resize clears the canvas and no rAF redraws it
+function resize() {
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var w = window.innerWidth, h = window.innerHeight;
+  if (w === W && h === H && dpr === DPR) return; // re-setting canvas.width wipes it — skip no-ops
+  DPR = dpr; W = w; H = h;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (renderShot) renderShot();
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* ---------------- audio plumbing ---------------- */
+var AC = window.AudioContext || window.webkitAudioContext;
+var audioCtx = null, analyser = null, mediaStream = null, sourceNode = null;
+var FFT = 4096;
+
+function setupAnalyser(stream) {
+  audioCtx = new AC();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = FFT;
+  analyser.smoothingTimeConstant = 0.78;
+  sourceNode = audioCtx.createMediaStreamSource(stream);
+  sourceNode.connect(analyser);
+  mediaStream = stream;
+  stream.getAudioTracks()[0].addEventListener("ended", stopViz);
+}
+
+function startMic() {
+  errBox.textContent = "";
+  // disable voice processing — it eats music
+  var constraints = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false };
+  navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
+    setupAnalyser(stream);
+    startViz("microphone");
+  }).catch(function (e) {
+    errBox.textContent = e.name === "NotAllowedError"
+      ? "mic permission denied — allow it in the address bar and try again."
+      : "couldn't open the microphone (" + e.name + ")";
+  });
+}
+
+function startTab() {
+  errBox.textContent = "";
+  navigator.mediaDevices.getDisplayMedia({
+    video: true,
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+  }).then(function (stream) {
+    // we only want the sound; drop video immediately
+    stream.getVideoTracks().forEach(function (t) { t.stop(); });
+    if (stream.getAudioTracks().length === 0) {
+      stream.getTracks().forEach(function (t) { t.stop(); });
+      errBox.textContent = "no audio in that share.\npick a Tab (not window/screen) and tick “also share tab audio”.\nworks in Chrome / Brave / Edge.";
+      return;
+    }
+    setupAnalyser(stream);
+    startViz("tab audio");
+  }).catch(function (e) {
+    if (e.name !== "NotAllowedError") errBox.textContent = "screen share failed (" + e.name + ")";
+  });
+}
+
+function stopViz() {
+  running = false;
+  if (mediaStream) { mediaStream.getTracks().forEach(function (t) { t.stop(); }); mediaStream = null; }
+  if (audioCtx) { audioCtx.close(); audioCtx = null; analyser = null; }
+  hud.classList.remove("on");
+  home.classList.remove("hidden");
+  ctx.clearRect(0, 0, W, H);
+}
+
+/* ---------------- analysis state ---------------- */
+var freqByte = new Uint8Array(FFT / 2);
+var timeByte = new Uint8Array(2048);
+var freqFloat = new Float32Array(FFT / 2);
+
+var S = {
+  rms: 0, bass: 0, mid: 0, treble: 0,
+  pulse: 0,                 // beat flash, decays
+  chroma: new Float32Array(12),
+  domPc: 0,                 // dominant pitch class 0..11 (0 = C)
+  hue: 260,                 // current colour, eased toward harmony
+  bassHist: [], lastBeat: 0
+};
+var PC_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+
+function analyse(now, fake) {
+  var i, sampleRate, binHz;
+  if (fake) { fake.fill(now); sampleRate = 48000; }
+  else {
+    analyser.getByteFrequencyData(freqByte);
+    analyser.getByteTimeDomainData(timeByte);
+    analyser.getFloatFrequencyData(freqFloat);
+    sampleRate = audioCtx.sampleRate;
+  }
+  binHz = sampleRate / FFT;
+
+  // rms from waveform
+  var sum = 0;
+  for (i = 0; i < timeByte.length; i++) { var v = (timeByte[i] - 128) / 128; sum += v * v; }
+  S.rms += (Math.sqrt(sum / timeByte.length) - S.rms) * 0.25;
+
+  // band energies (byte spectrum, 0..1)
+  function band(lo, hi) {
+    var a = Math.max(1, Math.floor(lo / binHz)), b = Math.min(freqByte.length - 1, Math.ceil(hi / binHz)), s = 0;
+    for (var k = a; k <= b; k++) s += freqByte[k];
+    return s / ((b - a + 1) * 255);
+  }
+  S.bass += (band(20, 160) - S.bass) * 0.4;
+  S.mid += (band(160, 2000) - S.mid) * 0.3;
+  S.treble += (band(2000, 12000) - S.treble) * 0.3;
+
+  // beat: bass vs its rolling average
+  S.bassHist.push(S.bass);
+  if (S.bassHist.length > 43) S.bassHist.shift();
+  var avg = 0;
+  for (i = 0; i < S.bassHist.length; i++) avg += S.bassHist[i];
+  avg /= S.bassHist.length || 1;
+  if (S.bass > avg * 1.30 && S.bass > 0.12 && now - S.lastBeat > 0.22) {
+    S.pulse = 1; S.lastBeat = now; spawnBurst();
+  }
+  S.pulse *= 0.92;
+
+  // chromagram from float spectrum (55 Hz – 4.2 kHz)
+  var chroma = new Float32Array(12);
+  var a0 = Math.floor(55 / binHz), b0 = Math.ceil(4200 / binHz);
+  for (i = Math.max(1, a0); i <= b0 && i < freqFloat.length; i++) {
+    var f = i * binHz;
+    var mag = Math.pow(10, freqFloat[i] / 20);
+    if (!isFinite(mag)) continue;
+    var pc = (((Math.round(12 * Math.log2(f / 440)) % 12) + 12) + 9) % 12; // 0 = C
+    chroma[pc] += mag;
+  }
+  var mx = 0;
+  for (i = 0; i < 12; i++) mx = Math.max(mx, chroma[i]);
+  var dom = S.domPc, domV = -1;
+  for (i = 0; i < 12; i++) {
+    var n = mx > 0 ? chroma[i] / mx : 0;
+    S.chroma[i] += (n - S.chroma[i]) * 0.22;
+    if (S.chroma[i] > domV) { domV = S.chroma[i]; dom = i; }
+  }
+  S.domPc = dom;
+
+  // ease hue toward dominant pitch class colour (shortest way round)
+  var target = dom * 30;
+  var d = ((target - S.hue + 540) % 360) - 180;
+  S.hue = (S.hue + d * 0.03 + 360) % 360;
+}
+
+/* ---------------- particles ---------------- */
+var parts = [];
+function spawnBurst() {
+  var n = 10 + Math.round(S.bass * 22);
+  var base = Math.min(W, H) * (0.16 + S.rms * 0.25);
+  for (var i = 0; i < n; i++) {
+    var a = Math.random() * Math.PI * 2;
+    var sp = (0.6 + Math.random() * 1.6) * Math.min(W, H) * 0.004;
+    parts.push({
+      x: W / 2 + Math.cos(a) * base, y: H / 2 + Math.sin(a) * base,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 1, hue: S.hue + (Math.random() * 60 - 30), r: 1 + Math.random() * 2.4
+    });
+  }
+  if (parts.length > 480) parts.splice(0, parts.length - 480);
+}
+
+/* ---------------- drawing ---------------- */
+function draw(now) {
+  var cx = W / 2, cy = H / 2, minD = Math.min(W, H);
+
+  // trail fade — dark wash tinted with current hue
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "hsla(" + S.hue + ", 45%, 4%, 0.28)";
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.globalCompositeOperation = "lighter";
+
+  // --- chroma petals: 12 pitch classes around the orb ---
+  var r0 = minD * (0.185 + S.rms * 0.05);
+  var i, a;
+  for (i = 0; i < 12; i++) {
+    var e = S.chroma[i];
+    if (e < 0.04) continue;
+    a = -Math.PI / 2 + (i / 12) * Math.PI * 2; // C at top
+    var len = e * minD * 0.22 * (1 + S.pulse * 0.35);
+    var w = Math.PI / 14;
+    var hue = i * 30;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r0 + len, a - w, a + w);
+    ctx.arc(cx, cy, r0 + 2, a + w, a - w, true);
+    ctx.closePath();
+    var alpha = 0.10 + e * 0.32 + (i === S.domPc ? 0.14 : 0);
+    ctx.fillStyle = "hsla(" + hue + ", 85%, " + (52 + e * 18) + "%, " + alpha + ")";
+    ctx.fill();
+  }
+
+  // --- waveform ring ---
+  ctx.beginPath();
+  var N = 180;
+  for (i = 0; i <= N; i++) {
+    var idx = Math.floor(i / N * (timeByte.length - 1));
+    var s = (timeByte[idx] - 128) / 128;
+    a = -Math.PI / 2 + (i / N) * Math.PI * 2;
+    var rr = r0 * (1 + s * (0.22 + S.treble * 0.5));
+    var x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.strokeStyle = "hsla(" + S.hue + ", 90%, 72%, " + (0.35 + S.rms * 0.5) + ")";
+  ctx.lineWidth = 1.4 + S.rms * 3;
+  ctx.stroke();
+
+  // --- core orb, breathes with bass ---
+  var orbR = minD * (0.055 + S.bass * 0.075 + S.pulse * 0.02);
+  var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, orbR * 3.2);
+  g.addColorStop(0, "hsla(" + S.hue + ", 95%, 78%, " + (0.55 + S.pulse * 0.4) + ")");
+  g.addColorStop(0.35, "hsla(" + ((S.hue + 40) % 360) + ", 90%, 60%, 0.22)");
+  g.addColorStop(1, "hsla(" + S.hue + ", 90%, 50%, 0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy, orbR * 3.2, 0, Math.PI * 2); ctx.fill();
+
+  // --- particles ---
+  for (i = parts.length - 1; i >= 0; i--) {
+    var p = parts[i];
+    p.x += p.vx; p.y += p.vy; p.vx *= 0.985; p.vy *= 0.985; p.life -= 0.016;
+    if (p.life <= 0) { parts.splice(i, 1); continue; }
+    ctx.fillStyle = "hsla(" + p.hue + ", 90%, 68%, " + (p.life * 0.6) + ")";
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // --- spectrum whisper along the bottom ---
+  var bars = 48, bw = W / bars;
+  for (i = 0; i < bars; i++) {
+    var bi = Math.floor(Math.pow(i / bars, 1.8) * (freqByte.length * 0.55)) + 1;
+    var h = (freqByte[bi] / 255) * minD * 0.08;
+    ctx.fillStyle = "hsla(" + ((S.hue + i * 2) % 360) + ", 80%, 60%, 0.10)";
+    ctx.fillRect(i * bw + 1, H - h, bw - 2, h);
+  }
+
+  ctx.globalCompositeOperation = "source-over";
+
+  // dominant note, tiny and honest
+  ctx.fillStyle = "rgba(232,228,240,0.28)";
+  ctx.font = "11px ui-monospace, Menlo, monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(PC_NAMES[S.domPc], cx, cy + 4);
+}
+
+/* ---------------- main loop ---------------- */
+var running = false, t0 = 0;
+function startViz(label) {
+  srcLabel.textContent = "listening: " + label;
+  home.classList.add("hidden");
+  hud.classList.add("on");
+  hud.classList.remove("faded");
+  bumpHud();
+  running = true;
+  t0 = performance.now();
+  ctx.fillStyle = "#07060c"; ctx.fillRect(0, 0, W, H);
+  requestAnimationFrame(loop);
+}
+function loop(ts) {
+  if (!running) return;
+  var now = (ts - t0) / 1000;
+  analyse(now, null);
+  draw(now);
+  requestAnimationFrame(loop);
+}
+
+/* ---------------- ui wiring ---------------- */
+document.getElementById("btnMic").addEventListener("click", startMic);
+document.getElementById("btnTab").addEventListener("click", startTab);
+document.getElementById("btnStop").addEventListener("click", stopViz);
+document.getElementById("btnFs").addEventListener("click", function () {
+  var el = document.documentElement;
+  if (document.fullscreenElement) document.exitFullscreen();
+  else if (el.requestFullscreen) el.requestFullscreen();
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+});
+
+// tab-audio only where getDisplayMedia exists and we're not on a phone
+var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+               (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent)); // iPad pretending to be a Mac
+if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia && !isMobile) {
+  document.getElementById("btnTab").hidden = false;
+}
+if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+  document.getElementById("btnMic").disabled = true;
+  errBox.textContent = "this browser can't capture audio — try a current Chrome / Brave / Safari / Firefox over https.";
+}
+
+// hud auto-fade; any pointer move brings it back
+var hudTimer = null;
+function bumpHud() {
+  hud.classList.remove("faded");
+  clearTimeout(hudTimer);
+  hudTimer = setTimeout(function () { if (running) hud.classList.add("faded"); }, 3000);
+}
+window.addEventListener("pointermove", function () { if (running) bumpHud(); });
+window.addEventListener("pointerdown", function () { if (running) bumpHud(); });
+window.addEventListener("keydown", function (e) { if (e.key === "Escape" && running) stopViz(); });
+
+/* ================================================================
+   screenshot hooks (headless chrome: rAF never fires under
+   --virtual-time-budget, so these render synchronously, no rAF)
+   #shot=home  → landing screen (nothing to do, it's static)
+   #shot=viz   → drive the visualizer with synthetic music data
+   ================================================================ */
+(function () {
+  var m = location.hash.match(/#shot=(\w+)/);
+  if (!m || m[1] !== "viz") return;
+  home.classList.add("hidden");
+  hud.classList.add("on");
+  srcLabel.textContent = "listening: demo";
+  // deterministic pseudo-random for particle bursts
+  var seed = 42;
+  Math.random = function () { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  var fake = {
+    fill: function (t) {
+      var i, beat = Math.pow(Math.max(0, Math.sin(t * Math.PI * 2 * 2)), 8); // 120 bpm
+      for (i = 0; i < freqByte.length; i++) {
+        var f = i * (48000 / FFT);
+        var e = 0;
+        e += 210 * beat * Math.exp(-f / 120);                         // kick
+        e += 130 * Math.exp(-Math.pow((f - 440) / 90, 2));            // A
+        e += 110 * Math.exp(-Math.pow((f - 523) / 90, 2));            // C
+        e += 100 * Math.exp(-Math.pow((f - 659) / 110, 2));           // E  (A-minor)
+        e += 45 * Math.exp(-f / 6000);
+        freqByte[i] = Math.min(255, e);
+        freqFloat[i] = e > 1 ? (e / 255) * 60 - 70 : -140;            // rough dB shape
+      }
+      for (i = 0; i < timeByte.length; i++) {
+        var ph = t + i / 4000;
+        var s = 0.5 * Math.sin(ph * 440 * 2 * Math.PI) + 0.3 * Math.sin(ph * 523 * 2 * Math.PI) + 0.45 * beat * Math.sin(ph * 55 * 2 * Math.PI);
+        timeByte[i] = 128 + Math.max(-127, Math.min(127, s * 90));
+      }
+    }
+  };
+  renderShot = function () {
+    var seed2 = 42; parts.length = 0;
+    Math.random = function () { seed2 = (seed2 * 1664525 + 1013904223) >>> 0; return seed2 / 4294967296; };
+    ctx.fillStyle = "#07060c"; ctx.fillRect(0, 0, W, H);
+    for (var f = 0; f < 150; f++) {         // ~2.5s of music, fixed 60fps steps
+      var now = f / 60;
+      analyse(now, fake);
+      draw(now);
+    }
+  };
+  renderShot();
+})();
+</script>
+<script>
+/* anonymous visit beacon — counts loads + presence heartbeats, no cookies */
+(function(){
+  if (location.protocol === "file:" || location.hostname === "localhost") return;
+  var EP = "https://site-analytics.vaibhavpro9210.workers.dev/ping";
+  var sid = sessionStorage.getItem("va_sid");
+  if (!sid) { sid = Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem("va_sid", sid); }
+  function send(kind){
+    try { navigator.sendBeacon(EP, new Blob([JSON.stringify({sid:sid, page:location.pathname, kind:kind})], {type:"text/plain"})); } catch(e){}
+  }
+  send("load");
+  setInterval(function(){ if (document.visibilityState === "visible") send("beat"); }, 60000);
+})();
+</script>
+</body>
+</html>
