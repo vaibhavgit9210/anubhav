@@ -13,7 +13,7 @@ Realtime music visualizer — play your music anywhere (Spotify, YouTube, anothe
 
 Nothing is recorded and nothing leaves the page — the stream feeds a Web Audio `AnalyserNode` and dies there.
 
-## Six styles (cycle with the ◐ pill, keys 1–6, or ←/→)
+## Seven styles (cycle with the ◐ pill, keys 1–7, or ←/→)
 
 1. **bloom** — 12 chroma petals (one per pitch class, C at top), bass-breathing orb, waveform ring, beat particle bursts; dominant pitch class steers the page hue
 2. **scope** — Takens phase portrait: `x(t)` vs `x(t−τ)`, the signal folded onto itself; phosphor persistence, B&W
@@ -21,6 +21,7 @@ Nothing is recorded and nothing leaves the page — the stream feeds a Web Audio
 4. **fourier** — the live waveform DFT'd into 22 epicycles chained tip-to-tip, drawing itself (complex-EMA'd so phases don't jitter)
 5. **helix** — pitch spiral, one turn per octave: same note in every octave lands on one ray with one colour
 6. **manifold** — (spectral centroid, RMS, flux) traced as a wireframe trajectory through R³, axes auto-normalised to the recent range, numeric vertex labels — same idea as the vocal manifold on anime-voice-fights
+7. **waves** — the spectrum split into five instrument-role lanes (SUB · BASS · CHORDS · LEAD · AIR), each a flowing log-frequency wave in its own colour; the bass and lead lanes name their strongest note (E1, C#5…), the chord lane names the triad via chromagram template-matching (Am, F…). Honest framing: these are frequency roles, not ML source separation
 
 Every style carries a scientific readout (top-left): RMS dBFS, spectral centroid, flux, detected key, live BPM estimate (median of recent beat gaps), gate level.
 
@@ -28,7 +29,7 @@ Every style carries a scientific readout (top-left): RMS dBFS, spectral centroid
 
 ## Analysis (all in `analyse()`)
 
-RMS, bass/mid/treble bands, beat detection (bass vs ~0.7 s rolling average, gated), 12-bin chromagram (55 Hz–4.2 kHz folded into pitch classes), spectral centroid, spectral flux, two strongest spectral peaks → Chladni modes, beat-gap median → BPM.
+RMS, bass/mid/treble bands, beat detection (bass vs ~0.7 s rolling average, gated), 12-bin chromagram (55 Hz–4.2 kHz folded into pitch classes), spectral centroid, spectral flux, two strongest spectral peaks → Chladni modes, beat-gap median → BPM, per-lane peak notes (MIDI-rounded), 24-triad chord template match on the chromagram.
 
 ## Screenshot hooks (headless Chrome)
 
@@ -36,7 +37,7 @@ rAF never fires under `--virtual-time-budget`, so the hooks render synchronously
 
 - `#shot=home` — landing screen
 - `#shot=viz` — visualizer driven by ~3.5 s of synthetic music (120 bpm kick + A-minor chord + drifting spectral tail), deterministic (seeded RNG)
-- `#shot=viz&style=<key>` — specific style: `bloom|scope|chladni|fourier|helix|manifold`
+- `#shot=viz&style=<key>` — specific style: `bloom|scope|chladni|fourier|helix|manifold|waves`
 
 A late headless resize event wipes the canvas after the script runs — `resize()` skips no-op resizes and re-renders the shot frame, so screenshots survive it.
 

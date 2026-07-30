@@ -91,7 +91,7 @@
 <div id="home">
   <h1>anubhav<span class="hindi">अनुभव</span></h1>
   <p class="tag">play your music anywhere — speakers, another tab, another app — and watch it breathe. nothing is recorded, nothing leaves this page.</p>
-  <p class="styles">six ways of seeing: bloom · phase portrait · chladni sand · fourier circles · pitch helix · audio manifold</p>
+  <p class="styles">seven ways of seeing: bloom · phase portrait · chladni sand · fourier circles · pitch helix · audio manifold · spectral waves</p>
   <button class="src-btn" id="btnMic">
     <span class="ico">🎤</span>
     <span>microphone<small>music on speakers — works on any device</small></span>
@@ -336,6 +336,27 @@ function analyse(now, fake) {
     S.m += (mt - S.m) * 0.03;
     S.n += (nt - S.n) * 0.03;
   }
+
+  // note tracking per role lane + chord estimate (triad template match)
+  function peakNote(lo, hi, minV) {
+    var a2 = Math.max(1, Math.floor(lo / binHz)), b2 = Math.min(freqByte.length - 1, Math.floor(hi / binHz));
+    var bi = a2, bv = -1;
+    for (var k2 = a2; k2 <= b2; k2++) if (freqByte[k2] > bv) { bv = freqByte[k2]; bi = k2; }
+    if (bv < minV || S.gate < 0.2) return "—";
+    var midi = Math.round(12 * Math.log2(bi * binHz / 440)) + 69;
+    return PC_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
+  }
+  S.bassNote = peakNote(40, 250, 34);
+  S.leadNote = peakNote(500, 4200, 30);
+  var best = -1, bestName = "—", csum = 0;
+  for (i = 0; i < 12; i++) csum += S.chroma[i];
+  for (i = 0; i < 12; i++) {
+    var maj = S.chroma[i] + S.chroma[(i + 4) % 12] + S.chroma[(i + 7) % 12];
+    var min = S.chroma[i] + S.chroma[(i + 3) % 12] + S.chroma[(i + 7) % 12];
+    if (maj > best) { best = maj; bestName = PC_NAMES[i]; }
+    if (min > best) { best = min; bestName = PC_NAMES[i] + "m"; }
+  }
+  S.chord = (S.gate > 0.25 && csum > 0.4 && best / (csum + 1e-6) > 0.36) ? bestName : "—";
 }
 
 /* ---------------- style: bloom ---------------- */
@@ -754,6 +775,71 @@ function drawManifold(now) {
   ctx.fillText("(centroid, rms, flux) → R³", 16, H - 16);
 }
 
+/* ---------------- style: spectral waves ----------------
+   the spectrum split into five instrument-role lanes, each a flowing
+   wave in its own colour; bass and lead lanes name their strongest
+   note, the chord lane names the triad the chromagram is playing.   */
+var WBANDS = [
+  { name: "AIR",    lo: 4000, hi: 14000, col: "125,211,252", yf: 0.24, k: 0.045, sp: 3.2 },
+  { name: "LEAD",   lo: 500,  hi: 4200,  col: "189,147,249", yf: 0.38, k: 0.030, sp: 2.3 },
+  { name: "CHORDS", lo: 250,  hi: 2000,  col: "45,212,191",  yf: 0.52, k: 0.020, sp: 1.7 },
+  { name: "BASS",   lo: 60,   hi: 250,   col: "224,175,104", yf: 0.66, k: 0.012, sp: 1.2 },
+  { name: "SUB",    lo: 20,   hi: 120,   col: "247,118,142", yf: 0.80, k: 0.008, sp: 0.8 }
+];
+function drawWaves(now) {
+  var minD = Math.min(W, H), binHz = SR / FFT;
+  var GF = 0.08 + 0.92 * S.gate;
+
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "rgba(5,5,9,0.30)";
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.globalCompositeOperation = "lighter";
+  var N = 120;
+  for (var b = 0; b < WBANDS.length; b++) {
+    var bd = WBANDS[b], yB = H * bd.yf;
+    // lane energy
+    var a2 = Math.max(1, Math.floor(bd.lo / binHz)), b2 = Math.min(freqByte.length - 1, Math.floor(bd.hi / binHz));
+    var e = 0;
+    for (var q = a2; q <= b2; q++) e += freqByte[q];
+    e /= (b2 - a2 + 1) * 255;
+
+    var amp = H * 0.10 * (1 + S.pulse * 0.4);
+    for (var pass = 0; pass < 2; pass++) {
+      ctx.beginPath();
+      for (var j = 0; j <= N; j++) {
+        var xr = j / N;
+        var f = bd.lo * Math.pow(bd.hi / bd.lo, xr);            // log-frequency across the lane
+        var v = freqByte[Math.min(freqByte.length - 1, Math.floor(f / binHz))] / 255;
+        var y = yB + Math.sin(xr * W * bd.k + now * bd.sp + b * 1.7) * (3 + Math.pow(v, 1.5) * amp);
+        var x = xr * W;
+        if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      if (pass === 0) { ctx.strokeStyle = "rgba(" + bd.col + "," + ((0.08 + 0.22 * e) * GF) + ")"; ctx.lineWidth = 6; }
+      else { ctx.strokeStyle = "rgba(" + bd.col + "," + ((0.30 + 0.60 * e) * GF) + ")"; ctx.lineWidth = 1.6; }
+      ctx.stroke();
+    }
+
+    // lane label + live annotation
+    ctx.globalCompositeOperation = "source-over";
+    ctx.font = "10px ui-monospace, Menlo, monospace";
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(" + bd.col + "," + ((0.30 + 0.45 * e) * GF) + ")";
+    ctx.fillText(bd.name, 16, yB - 10);
+    var note = bd.name === "BASS" ? S.bassNote
+             : bd.name === "LEAD" ? S.leadNote
+             : bd.name === "CHORDS" ? S.chord
+             : bd.name === "AIR" ? Math.round(S.treble * 100) + "%"
+             : Math.round(S.bass * 100) + "%";
+    ctx.textAlign = "right";
+    ctx.font = "13px ui-monospace, Menlo, monospace";
+    ctx.fillStyle = "rgba(" + bd.col + "," + ((0.45 + 0.5 * e) * GF) + ")";
+    ctx.fillText(note, W - 16, yB - 10);
+    ctx.globalCompositeOperation = "lighter";
+  }
+  ctx.globalCompositeOperation = "source-over";
+}
+
 /* ---------------- scientific readout, drawn over every style ---------------- */
 function drawReadout() {
   var a = 0.10 + 0.26 * S.gate;
@@ -794,7 +880,10 @@ var STYLES = [
     sub: "one turn per octave — every C on one ray" },
   { key: "manifold", draw: drawManifold, init: initManifold,
     title: "SPATIOTEMPORAL AUDIO MANIFOLD · (CENTROID, RMS, FLUX) → R³ · LIVE",
-    sub: "the song walking through its own feature space" }
+    sub: "the song walking through its own feature space" },
+  { key: "waves",    draw: drawWaves,    init: function () {},
+    title: "SPECTRAL WAVES · 5 ROLE LANES · NOTE + CHORD TRACKING · LIVE",
+    sub: "sub · bass · chords · lead · air — each named, each its own colour" }
 ];
 var styleIdx = 0;
 try {
