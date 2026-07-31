@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>anubhav — feel your music</title>
-<meta name="description" content="Point it at whatever you're listening to and watch the music breathe — five ways of seeing sound: harmony bloom, phase portraits, Chladni sand, Fourier epicycles, the pitch helix.">
+<meta name="description" content="Point it at whatever you're listening to and watch the music breathe — eight ways of seeing sound: harmony bloom, phase portraits, Chladni sand, Fourier epicycles, the pitch helix, the audio manifold, spectral waves, a low-poly shoal.">
 <meta name="theme-color" content="#07060c">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌀</text></svg>">
 <style>
@@ -17,7 +17,7 @@
     -webkit-user-select: none; user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
-  #canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 
   /* ---------- landing ---------- */
   #home {
@@ -91,7 +91,7 @@
 <div id="home">
   <h1>anubhav<span class="hindi">अनुभव</span></h1>
   <p class="tag">play your music anywhere — speakers, another tab, another app — and watch it breathe. nothing is recorded, nothing leaves this page.</p>
-  <p class="styles">seven ways of seeing: bloom · phase portrait · chladni sand · fourier circles · pitch helix · audio manifold · spectral waves</p>
+  <p class="styles">eight ways of seeing: bloom · phase portrait · chladni sand · fourier circles · pitch helix · audio manifold · spectral waves · low-poly shoal</p>
   <button class="src-btn" id="btnMic">
     <span class="ico">🎤</span>
     <span>microphone<small>music on speakers — works on any device</small></span>
@@ -122,7 +122,8 @@
    analysis: rms, bass/mid/treble, beat, 12-bin chromagram,
              spectral peaks, absolute-loudness gate (pause → black)
    styles  : bloom | scope (Takens phase portrait) | chladni sand |
-             fourier epicycles | pitch helix
+             fourier epicycles | pitch helix | audio manifold |
+             spectral waves | low-poly shoal
    ================================================================ */
 
 var TAU = Math.PI * 2;
@@ -146,7 +147,7 @@ function resize() {
   canvas.width = Math.round(W * DPR);
   canvas.height = Math.round(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  stars = null; blooms = null; // regenerate the ambient field for the new size
+  stars = null; aurora = null; shoal = null; // regenerate size-dependent fields
   if (renderShot) renderShot();
 }
 window.addEventListener("resize", resize);
@@ -855,6 +856,323 @@ function drawWaves(now) {
   }
 }
 
+/* ---------------- style: low-poly shoal ----------------
+   the mix cast as ocean life. every voice is a species, and how hard
+   that voice plays is how many of that fish are in the water:
+     whale=sub · shark=bass · salmon=chords · fish=lead · tiny=air
+     jellyfish=sustained pads (tonal, low flux) · squid=transients
+   ORDER (rhythm lock + a nameable chord) is the innovation: chaotic
+   music → the shoal wanders a noise flow field; when the song locks
+   in, the same fish sort themselves into a living spectrum — low
+   voices deep, high voices near the light — order out of randomness.
+   touch/click a fish to hold it; it will fight until it slips free. */
+var FISH_MESH = {
+  fish: [
+    [0.50,0.00, 0.24,-0.15, 0.24,0.13, 2],
+    [0.24,-0.15, -0.14,-0.02, 0.24,0.13, 1],
+    [0.24,0.13, -0.14,-0.02, 0.02,0.16, 3],
+    [0.10,-0.14, -0.06,-0.30, -0.14,-0.09, 0],
+    [-0.14,-0.02, -0.30,-0.01, -0.22,0.06, 0],
+    [-0.26,0.00, -0.50,-0.17, -0.50,0.15, 0]
+  ],
+  tiny: [
+    [0.50,0.00, 0.05,-0.14, 0.05,0.12, 2],
+    [0.05,-0.14, -0.22,0.00, 0.05,0.12, 1],
+    [-0.18,0.00, -0.50,-0.13, -0.50,0.11, 0]
+  ],
+  salmon: [
+    [0.50,0.02, 0.26,-0.14, 0.28,0.12, 2],
+    [0.26,-0.14, -0.02,-0.20, -0.16,-0.02, 1],
+    [0.26,-0.14, -0.16,-0.02, 0.28,0.12, 1],
+    [0.28,0.12, -0.16,-0.02, 0.00,0.16, 3],
+    [0.02,-0.19, -0.10,-0.32, -0.16,-0.12, 0],
+    [-0.16,-0.02, -0.34,0.00, -0.24,0.07, 0],
+    [-0.30,0.00, -0.50,-0.18, -0.50,0.16, 0]
+  ],
+  shark: [
+    [0.55,0.02, 0.30,-0.10, 0.32,0.12, 2],
+    [0.30,-0.10, -0.10,-0.13, -0.22,0.02, 1],
+    [0.30,-0.10, -0.22,0.02, 0.32,0.12, 1],
+    [0.32,0.12, -0.22,0.02, 0.05,0.15, 3],
+    [0.06,-0.12, -0.08,-0.38, -0.18,-0.10, 0],
+    [0.18,0.11, 0.02,0.32, -0.04,0.10, 0],
+    [-0.22,0.02, -0.40,0.00, -0.30,0.06, 1],
+    [-0.36,0.00, -0.55,-0.26, -0.44,0.00, 0],
+    [-0.36,0.00, -0.52,0.14, -0.42,0.02, 0]
+  ],
+  whale: [
+    [0.50,0.05, 0.34,-0.12, 0.36,0.16, 2],
+    [0.34,-0.12, 0.00,-0.20, -0.05,0.02, 1],
+    [0.34,-0.12, -0.05,0.02, 0.36,0.16, 1],
+    [0.36,0.16, -0.05,0.02, 0.05,0.20, 3],
+    [0.00,-0.20, -0.30,-0.12, -0.05,0.02, 1],
+    [-0.05,0.02, -0.30,-0.12, -0.20,0.10, 0],
+    [-0.20,0.10, -0.30,-0.12, -0.40,-0.02, 0],
+    [-0.40,-0.02, -0.55,-0.16, -0.48,0.02, 0],
+    [-0.40,-0.02, -0.55,0.12, -0.46,0.04, 0],
+    [0.12,0.18, 0.00,0.30, -0.06,0.16, 0]
+  ],
+  squid: [
+    [0.50,0.00, 0.10,-0.13, 0.10,0.13, 1],
+    [0.42,-0.03, 0.20,-0.20, 0.16,-0.06, 0],
+    [0.42,0.03, 0.20,0.20, 0.16,0.06, 0],
+    [0.10,-0.09, -0.06,0.00, 0.10,0.09, 2]
+  ],
+  jelly: [
+    [0.00,-0.30, -0.30,0.00, -0.13,0.06, 1],
+    [0.00,-0.30, -0.13,0.06, 0.00,0.08, 2],
+    [0.00,-0.30, 0.00,0.08, 0.13,0.06, 1],
+    [0.00,-0.30, 0.13,0.06, 0.30,0.00, 0]
+  ]
+};
+// draw order = depth order, back of the water first
+var SHOAL_SP = [
+  { key:"whale",  label:"SUB",    lo:20,   hi:120,   max:2,  size:0.40, speed:0.035, orderly:0.55, lane:0.84, wag:0.05, hue:222, sat:45, L:[20,27,35,52], al:1.00, kick:0.15, eye:[0.36,0.02,0.020],  mesh:"whale" },
+  { key:"jelly",  label:"PADS",   lo:250,  hi:2000,  max:6,  size:0.10, speed:0.014, orderly:0.15, lane:0.40, wag:0,    hue:285, sat:60, L:[48,58,68,80], al:0.50, kick:0,    eye:null,               mesh:"jelly" },
+  { key:"shark",  label:"BASS",   lo:60,   hi:250,   max:3,  size:0.24, speed:0.065, orderly:0.65, lane:0.72, wag:0.08, hue:212, sat:16, L:[30,40,50,68], al:1.00, kick:0.5,  eye:[0.40,-0.02,0.018], mesh:"shark" },
+  { key:"squid",  label:"FLUX",   lo:250,  hi:2500,  max:5,  size:0.12, speed:0.060, orderly:0.35, lane:0.56, wag:0,    hue:330, sat:48, L:[30,42,54,68], al:0.92, kick:1.4,  eye:[0.06,-0.03,0.022], mesh:"squid" },
+  { key:"salmon", label:"CHORDS", lo:250,  hi:800,   max:9,  size:0.105,speed:0.080, orderly:0.80, lane:0.60, wag:0.15, hue:14,  sat:62, L:[32,42,52,66], al:1.00, kick:0.7,  eye:[0.38,-0.03,0.020], mesh:"salmon" },
+  { key:"fish",   label:"LEAD",   lo:800,  hi:3500,  max:14, size:0.07, speed:0.090, orderly:0.90, lane:0.44, wag:0.20, hue:174, sat:55, L:[28,40,52,66], al:1.00, kick:0.8,  eye:[0.36,-0.03,0.024], mesh:"fish" },
+  { key:"tiny",   label:"AIR",    lo:3500, hi:12000, max:26, size:0.032,speed:0.105, orderly:1.00, lane:0.28, wag:0.30, hue:200, sat:65, L:[50,62,72,85], al:0.95, kick:1.0,  eye:null,               mesh:"tiny" }
+];
+var shoal = null, heldFish = null, heldPt = { x: 0, y: 0 };
+function initShoal() {
+  heldFish = null;
+  shoal = { pods: SHOAL_SP.map(function () { return []; }),
+            cool: SHOAL_SP.map(function () { return 0; }),
+            env: SHOAL_SP.map(function () { return 0; }),
+            last: 0, ord: 0 };
+}
+function spawnFish(sp, si) {
+  var m = sp.size * Math.min(W, H);
+  shoal.pods[si].push({
+    x: sp.mesh === "jelly" ? Math.random() * W : Math.random() * (W + m) - m,
+    y: sp.mesh === "jelly" ? H + m * 0.5
+       : H * clamp(sp.lane + (Math.random() - 0.5) * 0.55, 0.10, 0.93),
+    a: sp.mesh === "jelly" ? 0 : (Math.random() - 0.5) * 0.3,
+    v: 1, al: 0, dying: 0, held: 0, holdT: 0,
+    phase: Math.random() * TAU, s1: Math.random() * TAU, s2: Math.random() * TAU,
+    sc: 0.8 + Math.random() * 0.45
+  });
+}
+function releaseHeld(escaped) {
+  if (!heldFish) return;
+  var f = heldFish;
+  f.held = 0; f.holdT = 0;
+  f.v = escaped ? 5 : 3.5;   // panic dart
+  f.a = (Math.random() < 0.5 ? Math.PI : 0) + (Math.random() - 0.5) * 1.2;
+  heldFish = null;
+}
+function grabFishAt(x, y) {
+  if (!shoal || STYLES[styleIdx].key !== "shoal") return;
+  var best = null, bestD = 1e9, minD = Math.min(W, H);
+  for (var si = 0; si < SHOAL_SP.length; si++) {
+    var sp = SHOAL_SP[si], pod = shoal.pods[si], sz = sp.size * minD;
+    for (var q = 0; q < pod.length; q++) {
+      var f = pod[q];
+      if (f.dying) continue;
+      var d = Math.hypot(f.x - x, f.y - y);
+      if (d < Math.max(sz * 0.6, 34) && d < bestD) { bestD = d; best = f; }
+    }
+  }
+  if (best) { releaseHeld(false); heldFish = best; best.held = 1; best.holdT = 0; heldPt.x = x; heldPt.y = y; }
+}
+function drawFishSprite(f, sp, size) {
+  var mesh = FISH_MESH[sp.mesh];
+  var up = sp.mesh === "jelly";
+  var ca = up ? 1 : Math.cos(f.a), sa = up ? 0 : Math.sin(f.a);
+  var flip = (!up && ca < 0) ? -1 : 1;   // mirror so the dorsal side stays up
+  var A = f.al * sp.al * (0.15 + 0.85 * Math.pow(S.gate, 0.6));
+  var sc = size * f.sc;
+  var bell = up ? 1 + 0.13 * Math.sin(f.phase) : 1;
+  var ti, vi, k;
+  for (ti = 0; ti < mesh.length; ti++) {
+    var tr = mesh[ti];
+    ctx.beginPath();
+    for (vi = 0; vi < 3; vi++) {
+      var lx = tr[vi * 2], ly = tr[vi * 2 + 1] * flip;
+      if (sp.wag) ly += Math.sin(f.phase - lx * 3.1) * sp.wag * (0.06 + Math.max(0, -lx) * 0.55);
+      if (up) { lx *= bell; ly *= 2 - bell; }
+      var wx = f.x + (lx * ca - ly * sa) * sc;
+      var wy = f.y + (lx * sa + ly * ca) * sc;
+      if (vi === 0) ctx.moveTo(wx, wy); else ctx.lineTo(wx, wy);
+    }
+    ctx.closePath();
+    ctx.fillStyle = "hsla(" + sp.hue + "," + sp.sat + "%," + sp.L[tr[6]] + "%," + A + ")";
+    ctx.fill();
+  }
+  if (sp.eye) {
+    var ex = sp.eye[0], ey = sp.eye[1] * flip;
+    ctx.fillStyle = "rgba(6,10,18," + A + ")";
+    ctx.beginPath();
+    ctx.arc(f.x + (ex * ca - ey * sa) * sc, f.y + (ex * sa + ey * ca) * sc, sp.eye[2] * sc, 0, TAU);
+    ctx.fill();
+  }
+  // trailing tentacles
+  if (sp.mesh === "squid" || up) {
+    ctx.strokeStyle = "hsla(" + sp.hue + "," + sp.sat + "%," + sp.L[1] + "%," + (A * 0.8) + ")";
+    ctx.lineWidth = Math.max(1, sc * 0.022);
+    for (k = 0; k < 5; k++) {
+      ctx.beginPath();
+      if (up) {
+        var bx = f.x + (k / 4 - 0.5) * 0.42 * sc * bell;
+        ctx.moveTo(bx, f.y + 0.07 * sc);
+        for (var g = 1; g <= 4; g++)
+          ctx.lineTo(bx + Math.sin(f.phase * 1.6 + k * 1.7 + g * 1.2) * 0.05 * sc * g / 4,
+                     f.y + (0.07 + g * 0.12) * sc);
+      } else {
+        var spr = (k / 4 - 0.5) * 0.16 * flip;
+        var ax = f.x + (-0.05 * ca - spr * sa) * sc, ay = f.y + (-0.05 * sa + spr * ca) * sc;
+        ctx.moveTo(ax, ay);
+        for (var g2 = 1; g2 <= 4; g2++) {
+          var dist = g2 * 0.12 * sc;
+          var off = Math.sin(f.phase * 2 + k * 1.3 + g2) * 0.035 * sc * g2 / 2;
+          ctx.lineTo(ax - ca * dist - sa * off, ay - sa * dist + ca * off);
+        }
+      }
+      ctx.stroke();
+    }
+  }
+}
+function drawShoal(now) {
+  if (!shoal) initShoal();
+  var dt = clamp(now - shoal.last, 0.004, 0.05);
+  shoal.last = now;
+  var minD = Math.min(W, H), binHz = SR / FFT;
+  var G = S.gate, GF = 0.08 + 0.92 * G;
+  var si, q;
+
+  // ORDER: how locked-in the music is — a steady pulse plus a nameable chord
+  var ord = G * (0.25 + 0.45 * clamp(S.beatGaps.length / 6, 0, 1) + 0.30 * (S.chord !== "—" ? 1 : 0));
+  shoal.ord += (ord - shoal.ord) * 0.025;
+  var O = shoal.ord;
+  var curA = Math.sin(now * 0.05) * 0.16;   // the current: rightward, slowly meandering
+
+  // deep water
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#02050b";
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 0.25 + 0.75 * G;
+  var bgr = ctx.createLinearGradient(0, 0, 0, H);
+  bgr.addColorStop(0, "#0c1e36"); bgr.addColorStop(0.55, "#071527"); bgr.addColorStop(1, "#030a14");
+  ctx.fillStyle = bgr; ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  // light shafts from the surface
+  ctx.globalCompositeOperation = "lighter";
+  for (si = 0; si < 3; si++) {
+    var sx = W * (0.22 + 0.28 * si) + Math.sin(now * 0.04 + si * 2.1) * W * 0.06;
+    var sw = W * (0.05 + 0.02 * si);
+    var shaft = ctx.createLinearGradient(0, 0, 0, H * 0.85);
+    var sA = 0.05 * (0.3 + 0.7 * G) * (0.7 + 0.3 * Math.sin(now * 0.13 + si * 1.9));
+    shaft.addColorStop(0, "rgba(150,200,240," + sA + ")");
+    shaft.addColorStop(1, "rgba(150,200,240,0)");
+    ctx.fillStyle = shaft;
+    ctx.beginPath();
+    ctx.moveTo(sx - sw, 0); ctx.lineTo(sx + sw, 0);
+    ctx.lineTo(sx + sw * 2.6 + W * 0.06, H * 0.85); ctx.lineTo(sx - sw * 2.6 + W * 0.06, H * 0.85);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.globalCompositeOperation = "source-over";
+
+  var counts = [];
+  for (si = 0; si < SHOAL_SP.length; si++) {
+    var sp = SHOAL_SP[si], pod = shoal.pods[si];
+    // band energy → target population: the harder the voice plays, the more fish
+    var a2 = Math.max(1, Math.floor(sp.lo / binHz)), b2 = Math.min(freqByte.length - 1, Math.floor(sp.hi / binHz));
+    var e = 0;
+    for (q = a2; q <= b2; q++) e += freqByte[q];
+    e /= (b2 - a2 + 1) * 255;
+    if (sp.key === "squid") e = clamp(S.flux * 2.6, 0, 1) * clamp(e * 2.2, 0, 1);  // transients only
+    if (sp.key === "jelly") e *= 1 - clamp(S.flux * 3.5, 0, 1);                    // sustained tones only
+    e *= G;
+    // peak-hold envelope: a pulsing kick still keeps its whale in the water
+    shoal.env[si] += (e - shoal.env[si]) * (e > shoal.env[si] ? 0.5 : 0.03);
+    e = shoal.env[si];
+    var target = e < 0.05 ? 0 : Math.round(Math.pow(clamp((e - 0.03) / 0.65, 0, 1), 1.25) * sp.max);
+    shoal.cool[si] -= dt;
+    var live = 0;
+    for (q = 0; q < pod.length; q++) if (!pod[q].dying) live++;
+    if (live < target && shoal.cool[si] <= 0) { spawnFish(sp, si); shoal.cool[si] = 0.12 + 0.5 / sp.max; }
+    else if (live > target) {
+      for (q = 0; q < pod.length; q++) if (!pod[q].dying && !pod[q].held) { pod[q].dying = 1; break; }
+    }
+    counts.push(live);
+
+    var size = sp.size * minD;
+    var spd0 = sp.speed * minD * (0.45 + e * 1.1);
+    for (q = pod.length - 1; q >= 0; q--) {
+      var f = pod[q];
+      f.al += (f.dying ? -0.9 : 1.4) * dt;
+      if (f.al <= 0) { pod.splice(q, 1); continue; }
+      if (f.al > 1) f.al = 1;
+      f.v += (1 - f.v) * 0.05;
+      if (f.held) {
+        // caught — it fights the grip, harder the longer you hold on
+        f.holdT += dt;
+        var panic = Math.min(1, 0.4 + f.holdT * 0.4);
+        f.phase += dt * (18 + panic * 14);
+        f.x += (heldPt.x + Math.cos(now * 17 + f.s1) * size * 0.12 * panic - f.x) * 0.5;
+        f.y += (heldPt.y + Math.sin(now * 23 + f.s2) * size * 0.14 * panic - f.y) * 0.5;
+        if (sp.mesh !== "jelly") f.a = Math.sin(now * 19 + f.s1) * 0.6 * panic;
+        if (f.holdT > 1.4 + f.sc && Math.random() < 0.015 + f.holdT * 0.012) releaseHeld(true);
+      } else if (sp.mesh === "jelly") {
+        f.phase += dt * (1.1 + e * 1.6);
+        f.y -= sp.speed * minD * (0.5 + e) * dt * (0.35 + 0.9 * Math.max(0, Math.sin(f.phase)));
+        f.x += Math.sin(now * 0.3 + f.s1) * minD * 0.02 * dt;
+        if (f.y < H * 0.10 && !f.dying) f.dying = 1;   // dissolves at the surface
+      } else {
+        if (sp.key === "squid" && S.flux > 0.28 && Math.random() < 0.06) f.v = 3.2; // jet on a transient
+        var spd = spd0 * (1 + S.pulse * sp.kick) * f.v;
+        // chaos: a noise flow field · order: steer to your lane in the spectrum
+        var wander = Math.sin(f.x * 0.006 + now * 0.5 + f.s1) * 0.9 + Math.cos(f.y * 0.007 - now * 0.37 + f.s2) * 0.7;
+        var tA = curA + wander * (1 - O * sp.orderly)
+               + clamp((sp.lane * H - f.y) / H * 3.2, -0.75, 0.75) * O * sp.orderly;
+        var da = (((tA - f.a) % TAU + TAU * 1.5) % TAU) - Math.PI;
+        f.a += da * (0.02 + 0.05 * O) * dt * 60;
+        f.x += Math.cos(f.a) * spd * dt;
+        f.y += Math.sin(f.a) * spd * dt;
+        f.phase += dt * (4 + spd / Math.max(size, 8) * 3);
+        var mg = size;
+        if (f.x > W + mg) f.x = -mg;
+        else if (f.x < -mg * 1.6) f.x = W + mg * 0.5;
+        if (f.y < H * 0.05) { f.y = H * 0.05; f.a = -f.a; }
+        else if (f.y > H * 0.97) { f.y = H * 0.97; f.a = -f.a; }
+      }
+      drawFishSprite(f, sp, size);
+    }
+  }
+
+  // grip marker on the held fish
+  if (heldFish) {
+    ctx.strokeStyle = "rgba(232,228,240,0.3)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(heldPt.x, heldPt.y, 14 + Math.sin(now * 12) * 2, 0, TAU); ctx.stroke();
+  }
+
+  // species census, top right
+  ctx.textAlign = "right";
+  var row = 0;
+  for (si = SHOAL_SP.length - 1; si >= 0; si--) {
+    var sp2 = SHOAL_SP[si];
+    var yA = 64 + row * 17; row++;
+    ctx.font = "10px ui-monospace, Menlo, monospace";
+    ctx.fillStyle = "hsla(" + sp2.hue + "," + sp2.sat + "%,62%," + (0.35 * GF + 0.05) + ")";
+    ctx.fillText(sp2.label + " · " + sp2.key, W - 52, yA);
+    ctx.font = "12px ui-monospace, Menlo, monospace";
+    ctx.fillStyle = "hsla(" + sp2.hue + "," + sp2.sat + "%,62%," + (0.75 * GF + 0.05) + ")";
+    ctx.fillText("×" + counts[si], W - 16, yA);
+  }
+  ctx.font = "12px ui-monospace, Menlo, monospace";
+  ctx.fillStyle = "rgba(232,228,240," + (0.55 * GF + 0.08) + ")";
+  ctx.fillText("ORDER " + Math.round(O * 100) + "%", W - 16, 64 + row * 17 + 6);
+
+  ctx.fillStyle = "rgba(215,225,240," + (0.20 * G + 0.05) + ")";
+  ctx.font = "11px ui-monospace, Menlo, monospace";
+  ctx.textAlign = "left";
+  ctx.fillText("population ∝ band energy · order = rhythm + key lock · hold a fish, it fights back", 16, H - 16);
+}
+
 /* ---------------- scientific readout, drawn over every style ---------------- */
 function drawReadout() {
   var a = 0.10 + 0.26 * S.gate;
@@ -876,80 +1194,85 @@ function drawReadout() {
   for (var i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, y + 16 + i * 14);
 }
 
-/* ---------------- ambient: space + aurora while idle ----------------
+/* ---------------- ambient: aurora night while idle ----------------
    runs on the landing screen before any audio source is granted —
-   twinkling starfield under slow aurora curtains.                    */
+   slow aurora curtains breathing over a drifting starfield. made to
+   sit quietly on a projector wall: no rings, no strobing, nothing
+   sudden — the sky just breathes.                                    */
 var stars = null;
 function initStars() {
   stars = [];
   var n = Math.round(W * H / 16000) + 40;
-  var maxR = Math.hypot(W, H) / 2;
   for (var i = 0; i < n; i++)
-    stars.push([Math.random() * TAU, 20 + Math.random() * maxR, 0.4 + Math.random() * 1.3, Math.random() * TAU, 0.4 + Math.random() * 1.6]);
+    stars.push([Math.random() * W, Math.random() * H, 0.4 + Math.random() * 1.3,
+                Math.random() * TAU, 0.4 + Math.random() * 1.6, (Math.random() - 0.5) * 1.6]);
 }
-var BLOOM_COLS = [
-  ["124,255,178", "216,255,231"],
-  ["45,212,191",  "195,250,240"],
-  ["189,147,249", "233,221,255"],
-  ["247,118,142", "255,214,222"],
-  ["125,211,252", "224,244,255"]
+var AURORA_COLS = [
+  [86, 235, 178],    // aurora green
+  [45, 212, 191],    // teal
+  [150, 130, 248],   // violet
+  [125, 211, 252]    // ice blue
 ];
-// veil cross-section: wide faint halo layers into a thin pale core
-var BLOOM_PASSES = [[54, 0.020], [36, 0.030], [22, 0.045], [13, 0.058], [7, 0.075], [3.2, 0.10], [1.4, 0.14]];
-var blooms = null, bloomIdx = 0;
-function newBloom(born) {
-  return { born: born, col: BLOOM_COLS[bloomIdx++ % BLOOM_COLS.length],
-           a3: 0.05 + Math.random() * 0.05, a5: 0.03 + Math.random() * 0.04,
-           p3: Math.random() * TAU, p5: Math.random() * TAU };
-}
-function initBlooms() {
-  blooms = [];
-  for (var i = 0; i < 4; i++) blooms.push(newBloom(-i * 8.2));
+var aurora = null;
+function initAurora() {
+  aurora = [];
+  for (var i = 0; i < 4; i++) {
+    aurora.push({
+      col: AURORA_COLS[i % AURORA_COLS.length],
+      base: 0.18 + i * 0.17 + Math.random() * 0.03,   // vertical anchor, fraction of H
+      amp: 0.035 + Math.random() * 0.035,
+      f1: 0.9 + Math.random() * 0.9, f2: 1.9 + Math.random() * 1.6,
+      s1: (0.05 + Math.random() * 0.05) * (i % 2 ? -1 : 1),
+      s2: 0.04 + Math.random() * 0.05,
+      p1: Math.random() * TAU, p2: Math.random() * TAU,
+      drop: 0.10 + Math.random() * 0.09               // curtain height, fraction of H
+    });
+  }
 }
 function drawIdle(t) {
   if (!stars) initStars();
-  if (!blooms) initBlooms();
-  var cx = W / 2, cy = H / 2, maxR = Math.hypot(W, H) * 0.52;
-  var i;
+  if (!aurora) initAurora();
+  var i, j;
   ctx.globalCompositeOperation = "source-over";
-  ctx.fillStyle = "rgba(4,6,13,0.30)";
+  ctx.fillStyle = "rgba(4,6,13,0.35)";
   ctx.fillRect(0, 0, W, H);
 
-  // starfield streaming gently outward — slow warp
+  // starfield drifting sideways, barely
   for (i = 0; i < stars.length; i++) {
     var s = stars[i];
-    s[1] *= 1.0006;
-    if (s[1] > maxR) { s[0] = Math.random() * TAU; s[1] = 14 + Math.random() * 60; }
+    s[0] += s[5] * 0.03;
+    if (s[0] < 0) s[0] += W; else if (s[0] > W) s[0] -= W;
     var tw = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * s[4] + s[3]));
-    var depth = 0.25 + 0.75 * (s[1] / maxR);
-    ctx.fillStyle = "rgba(220,230,255," + (tw * 0.8 * depth) + ")";
-    ctx.fillRect(cx + Math.cos(s[0]) * s[1], cy + Math.sin(s[0]) * s[1], s[2], s[2]);
+    ctx.fillStyle = "rgba(220,230,255," + (tw * 0.55) + ")";
+    ctx.fillRect(s[0], s[1], s[2], s[2]);
   }
 
-  // aurora veils radiating outward — born mid-air (never a centre dot),
-  // surfacing very slowly out of the dark, dissolving at the edges
+  // aurora curtains: a pale rippling edge with a coloured veil hanging
+  // below it, each layer dimmer than the last; every curtain swells and
+  // dims on its own slow clock so the sky never repeats
   ctx.globalCompositeOperation = "lighter";
-  ctx.lineJoin = "round";
-  for (i = 0; i < blooms.length; i++) {
-    var B = blooms[i];
-    var age = t - B.born;
-    if (age < 0) continue;
-    var R = maxR * 0.16 * Math.exp(age * 0.06);
-    if (R > maxR * 1.15) { blooms[i] = newBloom(t); continue; }
-    var fade = Math.min(1, age / 5) * Math.min(1, Math.max(0, (maxR * 1.1 - R) / (maxR * 0.45)));
-    var N = 120;
-    ctx.beginPath();
-    for (var j = 0; j <= N; j++) {
-      var th = j / N * TAU;
-      var r = R * (1 + B.a3 * Math.sin(3 * th + B.p3 + t * 0.05) + B.a5 * Math.sin(5 * th - t * 0.04 + B.p5));
-      var x = cx + Math.cos(th) * r, y = cy + Math.sin(th) * r * 0.82; // slight ellipse
-      if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    for (var p = 0; p < BLOOM_PASSES.length; p++) {
-      var col = p < 5 ? B.col[0] : B.col[1]; // deep hue halo, pale luminous core
-      ctx.strokeStyle = "rgba(" + col + "," + (BLOOM_PASSES[p][1] * fade) + ")";
-      ctx.lineWidth = BLOOM_PASSES[p][0];
+  var STEPS = 90;
+  for (i = 0; i < aurora.length; i++) {
+    var rb = aurora[i];
+    var breathe = 0.65 + 0.35 * Math.sin(t * 0.11 + rb.p1);
+    var LAY = 14, dropPx = H * rb.drop / LAY;
+    for (var l = 0; l < LAY; l++) {
+      var fall = 1 - l / LAY;
+      ctx.beginPath();
+      for (j = 0; j <= STEPS; j++) {
+        var xr = j / STEPS;
+        var y = H * (rb.base
+          + rb.amp * Math.sin(xr * rb.f1 * TAU + t * rb.s1 + rb.p1)
+          + rb.amp * 0.6 * Math.sin(xr * rb.f2 * TAU - t * rb.s2 + rb.p2))
+          + l * dropPx * (1 + 0.25 * Math.sin(xr * 9 + rb.p2 + t * 0.05));
+        var x = xr * W;
+        if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      if (l === 0) { ctx.strokeStyle = "rgba(235,255,246," + (0.085 * breathe) + ")"; ctx.lineWidth = dropPx; }
+      else {
+        ctx.strokeStyle = "rgba(" + rb.col[0] + "," + rb.col[1] + "," + rb.col[2] + "," + (0.055 * fall * fall * breathe) + ")";
+        ctx.lineWidth = dropPx * 1.5;
+      }
       ctx.stroke();
     }
   }
@@ -981,7 +1304,10 @@ var STYLES = [
     sub: "the song walking through its own feature space" },
   { key: "waves",    draw: drawWaves,    init: function () {},
     title: "SPECTRAL WAVES · 5 ROLE LANES · NOTE + CHORD TRACKING · LIVE",
-    sub: "sub · bass · chords · lead · air — each named, each its own colour" }
+    sub: "sub · bass · chords · lead · air — each named, each its own colour" },
+  { key: "shoal",    draw: drawShoal,    init: initShoal,
+    title: "LOW-POLY SHOAL · 7 SPECIES · POPULATION ∝ BAND ENERGY · ORDER FROM CHAOS · LIVE",
+    sub: "every voice is a species — when the music locks in, the shoal sorts into a living spectrum. hold a fish, it fights back" }
 ];
 var styleIdx = 0;
 try {
@@ -1064,6 +1390,12 @@ function bumpHud() {
 }
 window.addEventListener("pointermove", function () { if (running) bumpHud(); });
 window.addEventListener("pointerdown", function () { if (running) bumpHud(); });
+
+// hold a fish (shoal style): grab on the canvas, drag it around, let go
+canvas.addEventListener("pointerdown", function (e) { if (running) grabFishAt(e.clientX, e.clientY); });
+window.addEventListener("pointermove", function (e) { if (heldFish) { heldPt.x = e.clientX; heldPt.y = e.clientY; } });
+window.addEventListener("pointerup", function () { releaseHeld(false); });
+window.addEventListener("pointercancel", function () { releaseHeld(false); });
 window.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && running) stopViz();
   if (!running) return;
@@ -1077,7 +1409,7 @@ window.addEventListener("keydown", function (e) {
    --virtual-time-budget, so these render synchronously, no rAF)
    #shot=home                 → landing screen (static)
    #shot=viz                  → visualizer on synthetic music
-   #shot=viz&style=<key>      → specific style (bloom|scope|chladni|fourier|helix)
+   #shot=viz&style=<key>      → specific style (bloom|scope|chladni|fourier|helix|manifold|waves|shoal)
    ================================================================ */
 (function () {
   var m = location.hash.match(/#shot=(home|viz)(?:&style=(\w+))?/);
@@ -1086,7 +1418,7 @@ window.addEventListener("keydown", function (e) {
     renderShot = function () {
       var seed = 42;
       Math.random = function () { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-      stars = null;
+      stars = null; aurora = null;
       for (var f = 0; f < 180; f++) drawIdle(f / 60);
     };
     renderShot();
