@@ -83,6 +83,21 @@
   #toast.show { opacity: 1; }
   #toast b { font-weight: 400; font-size: 15px; letter-spacing: .08em; }
   #toast span { display: block; font-size: 11px; opacity: .6; margin-top: 4px; line-height: 1.5; }
+
+  /* snap: captured-frame preview */
+  #snapmodal { position: fixed; inset: 0; z-index: 30; background: rgba(3,4,10,.82);
+    display: none; align-items: center; justify-content: center; flex-direction: column;
+    gap: 14px; padding: 20px; }
+  #snapmodal.show { display: flex; }
+  #snapmodal img { max-width: min(92vw, 720px); max-height: 68vh;
+    border: 1px solid rgba(232,228,240,.25); border-radius: 10px; }
+  #snapmodal .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  #snapmodal button { color: #e8e4f0; font: inherit; cursor: pointer; appearance: none;
+    background: rgba(10,12,24,.75); border: 1px solid rgba(232,228,240,.22);
+    border-radius: 999px; padding: 8px 16px; }
+  #snapmodal button:hover { border-color: rgba(232,228,240,.5); }
+  #snaphint { color: rgba(232,228,240,.55); font-size: 11px; }
+  @media (hover: hover) { #snaphint { display: none; } }
 </style>
 </head>
 <body>
@@ -108,11 +123,22 @@
   <span class="pill" id="srcLabel"></span>
   <span class="gap"></span>
   <button class="pill" id="btnStyle">◐ bloom</button>
+  <button class="pill" id="btnSnap">📸 snap</button>
   <button class="pill" id="btnFs">⛶ fullscreen</button>
   <button class="pill" id="btnStop">✕ stop</button>
 </div>
 
 <div id="toast"><b id="toastName"></b><span id="toastSub"></span></div>
+
+<div id="snapmodal">
+  <img id="snapimg" alt="captured frame">
+  <p id="snaphint">press &amp; hold the image to save it to your gallery 📱</p>
+  <div class="row">
+    <button id="snapShare">📤 share</button>
+    <button id="snapSave">⬇️ save png</button>
+    <button id="snapClose">✕ close</button>
+  </div>
+</div>
 
 <script>
 "use strict";
@@ -1405,11 +1431,56 @@ window.addEventListener("keydown", function (e) {
 });
 
 /* ================================================================
+   snap — export the current frame (readout included, it's drawn
+   in-canvas) with a small branded footer band, then share/save
+   ================================================================ */
+var snapURL = null, snapFile = null;
+function takeSnap() {
+  var w = canvas.width, h = canvas.height;
+  if (!w || !h) return;
+  var foot = Math.max(64, Math.round(Math.min(w, h) * 0.06));
+  var c = document.createElement("canvas");
+  c.width = w; c.height = h + foot;
+  var g = c.getContext("2d");
+  g.fillStyle = "#03040a"; g.fillRect(0, 0, w, h + foot);
+  g.drawImage(canvas, 0, 0);
+  g.textBaseline = "middle";
+  g.font = "500 " + Math.round(foot * 0.32) + "px ui-monospace, Menlo, monospace";
+  g.textAlign = "left";
+  g.fillStyle = "rgba(232,228,240,.92)";
+  g.fillText("anubhav · अनुभव", Math.round(foot * 0.5), h + foot / 2);
+  g.textAlign = "right";
+  g.fillStyle = "rgba(232,228,240,.55)";
+  g.fillText("vaibhavkumar.is-a.dev/anubhav", w - Math.round(foot * 0.5), h + foot / 2);
+  snapURL = c.toDataURL("image/png");
+  document.getElementById("snapimg").src = snapURL;
+  document.getElementById("snapShare").style.display = "none";
+  c.toBlob(function (blob) {
+    snapFile = new File([blob], "anubhav.png", { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [snapFile] }))
+      document.getElementById("snapShare").style.display = "";
+  }, "image/png");
+  document.getElementById("snapmodal").classList.add("show");
+}
+document.getElementById("btnSnap").addEventListener("click", takeSnap);
+document.getElementById("snapClose").addEventListener("click", function () {
+  document.getElementById("snapmodal").classList.remove("show");
+});
+document.getElementById("snapSave").addEventListener("click", function () {
+  var a = document.createElement("a");
+  a.href = snapURL; a.download = "anubhav.png"; a.click();
+});
+document.getElementById("snapShare").addEventListener("click", function () {
+  navigator.share({ files: [snapFile], title: "anubhav" }).catch(function () {});
+});
+
+/* ================================================================
    screenshot hooks (headless chrome: rAF never fires under
    --virtual-time-budget, so these render synchronously, no rAF)
    #shot=home                 → landing screen (static)
    #shot=viz                  → visualizer on synthetic music
    #shot=viz&style=<key>      → specific style (bloom|scope|chladni|fourier|helix|manifold|waves|shoal)
+   …&snap=1                   → also open the snap preview modal
    ================================================================ */
 (function () {
   var m = location.hash.match(/#shot=(home|viz)(?:&style=(\w+))?/);
@@ -1461,6 +1532,7 @@ window.addEventListener("keydown", function (e) {
       STYLES[styleIdx].draw(now);
     }
     drawReadout();
+    if (/[&#]snap=1/.test(location.hash)) takeSnap();
   };
   renderShot();
 })();
