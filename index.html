@@ -89,7 +89,7 @@
     display: none; align-items: center; justify-content: center; flex-direction: column;
     gap: 14px; padding: 20px; }
   #snapmodal.show { display: flex; }
-  #snapmodal img { max-width: min(92vw, 720px); max-height: 68vh;
+  #snapmodal img, #snapmodal video { max-width: min(92vw, 720px); max-height: 68vh;
     border: 1px solid rgba(232,228,240,.25); border-radius: 10px; }
   #snapmodal .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
   #snapmodal button { color: #e8e4f0; font: inherit; cursor: pointer; appearance: none;
@@ -124,6 +124,7 @@
   <span class="gap"></span>
   <button class="pill" id="btnStyle">◐ bloom</button>
   <button class="pill" id="btnSnap">📸 snap</button>
+  <button class="pill" id="btnRec">⏺ rec</button>
   <button class="pill" id="btnFs">⛶ fullscreen</button>
   <button class="pill" id="btnStop">✕ stop</button>
 </div>
@@ -132,6 +133,7 @@
 
 <div id="snapmodal">
   <img id="snapimg" alt="captured frame">
+  <video id="snapvid" autoplay loop muted playsinline hidden></video>
   <p id="snaphint">press &amp; hold the image to save it to your gallery 📱</p>
   <div class="row">
     <button id="snapShare">📤 share</button>
@@ -1435,6 +1437,20 @@ window.addEventListener("keydown", function (e) {
    in-canvas) with a small branded footer band, then share/save
    ================================================================ */
 var snapURL = null, snapFile = null;
+function drawSnapFooter(g, w, h, foot) {
+  g.textBaseline = "middle";
+  g.font = "500 " + Math.round(foot * 0.32) + "px ui-monospace, Menlo, monospace";
+  g.textAlign = "left";
+  g.fillStyle = "rgba(232,228,240,.92)";
+  g.fillText("anubhav · अनुभव", Math.round(foot * 0.5), h + foot / 2);
+  g.textAlign = "right";
+  g.fillStyle = "rgba(232,228,240,.55)";
+  g.fillText("vaibhavkumar.is-a.dev/anubhav", w - Math.round(foot * 0.5), h + foot / 2);
+}
+function snapShareable(file) {
+  document.getElementById("snapShare").style.display =
+    (navigator.canShare && navigator.canShare({ files: [file] })) ? "" : "none";
+}
 function takeSnap() {
   var w = canvas.width, h = canvas.height;
   if (!w || !h) return;
@@ -1444,31 +1460,76 @@ function takeSnap() {
   var g = c.getContext("2d");
   g.fillStyle = "#03040a"; g.fillRect(0, 0, w, h + foot);
   g.drawImage(canvas, 0, 0);
-  g.textBaseline = "middle";
-  g.font = "500 " + Math.round(foot * 0.32) + "px ui-monospace, Menlo, monospace";
-  g.textAlign = "left";
-  g.fillStyle = "rgba(232,228,240,.92)";
-  g.fillText("anubhav · अनुभव", Math.round(foot * 0.5), h + foot / 2);
-  g.textAlign = "right";
-  g.fillStyle = "rgba(232,228,240,.55)";
-  g.fillText("vaibhavkumar.is-a.dev/anubhav", w - Math.round(foot * 0.5), h + foot / 2);
+  drawSnapFooter(g, w, h, foot);
   snapURL = c.toDataURL("image/png");
   document.getElementById("snapimg").src = snapURL;
+  document.getElementById("snapimg").hidden = false;
+  var v = document.getElementById("snapvid");
+  v.hidden = true; v.removeAttribute("src");
   document.getElementById("snapShare").style.display = "none";
   c.toBlob(function (blob) {
     snapFile = new File([blob], "anubhav.png", { type: "image/png" });
-    if (navigator.canShare && navigator.canShare({ files: [snapFile] }))
-      document.getElementById("snapShare").style.display = "";
+    snapShareable(snapFile);
   }, "image/png");
   document.getElementById("snapmodal").classList.add("show");
 }
+/* ⏺ rec — 6s of the live visuals (video only, no audio: nothing is recorded
+   from your mic/tab; this only re-films the canvas you're already seeing) */
+var recBusy = false;
+function bestVideoMime() {
+  if (!window.MediaRecorder) return null;
+  var m = ["video/mp4;codecs=avc1.42E01E", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
+  for (var i = 0; i < m.length; i++) if (MediaRecorder.isTypeSupported(m[i])) return m[i];
+  return null;
+}
+function recordLive() {
+  if (recBusy || !running) return;
+  var btn = document.getElementById("btnRec");
+  var mime = bestVideoMime();
+  if (!mime) { btn.textContent = "⏺ no video here"; return; }
+  var w = canvas.width, h = canvas.height;
+  var foot = Math.max(64, Math.round(Math.min(w, h) * 0.06));
+  var c = document.createElement("canvas");
+  c.width = w; c.height = h + foot;
+  var g = c.getContext("2d");
+  var rec, chunks = [];
+  try { rec = new MediaRecorder(c.captureStream(30), { mimeType: mime, videoBitsPerSecond: 8000000 }); }
+  catch (e) { btn.textContent = "⏺ no video here"; return; }
+  recBusy = true;
+  rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = function () {
+    recBusy = false; btn.textContent = "⏺ rec";
+    var ext = mime.indexOf("mp4") > -1 ? "mp4" : "webm";
+    var blob = new Blob(chunks, { type: mime.split(";")[0] });
+    snapFile = new File([blob], "anubhav." + ext, { type: blob.type });
+    var v = document.getElementById("snapvid");
+    v.src = URL.createObjectURL(blob); v.hidden = false;
+    document.getElementById("snapimg").hidden = true;
+    snapShareable(snapFile);
+    document.getElementById("snapmodal").classList.add("show");
+  };
+  var DUR = 6000, t0 = performance.now();
+  rec.start(200);
+  (function frame(now) {
+    g.fillStyle = "#03040a"; g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(canvas, 0, 0);
+    drawSnapFooter(g, w, h, foot);
+    btn.textContent = "⏺ " + Math.ceil((DUR - (now - t0)) / 1000) + "s…";
+    if (now - t0 < DUR && running) requestAnimationFrame(frame);
+    else rec.stop();
+  })(t0);
+}
 document.getElementById("btnSnap").addEventListener("click", takeSnap);
+document.getElementById("btnRec").addEventListener("click", recordLive);
 document.getElementById("snapClose").addEventListener("click", function () {
   document.getElementById("snapmodal").classList.remove("show");
 });
 document.getElementById("snapSave").addEventListener("click", function () {
   var a = document.createElement("a");
-  a.href = snapURL; a.download = "anubhav.png"; a.click();
+  var v = document.getElementById("snapvid");
+  if (!v.hidden) { a.href = v.src; a.download = snapFile.name; }
+  else { a.href = snapURL; a.download = "anubhav.png"; }
+  a.click();
 });
 document.getElementById("snapShare").addEventListener("click", function () {
   navigator.share({ files: [snapFile], title: "anubhav" }).catch(function () {});
