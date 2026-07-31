@@ -41,6 +41,7 @@ The landing screen is alive before any audio starts: slow aurora-borealis curtai
 - `#shot=home` — landing screen (renders the aurora synchronously)
 - `#shot=viz` — visualizer driven by ~3.5 s of synthetic music (120 bpm kick + A-minor chord + drifting spectral tail), deterministic (seeded RNG)
 - `#shot=viz&style=<key>` — specific style: `bloom|scope|chladni|fourier|helix|manifold|waves|shoal`
+- `…&snap=1` — also opens the 📸 snap preview modal on the rendered frame
 
 A late headless resize event wipes the canvas after the script runs — `resize()` skips no-op resizes and re-renders the shot frame, so screenshots survive it.
 
