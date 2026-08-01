@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>anubhav — feel your music</title>
-<meta name="description" content="Point it at whatever you're listening to and watch the music breathe — eight ways of seeing sound: harmony bloom, phase portraits, Chladni sand, Fourier epicycles, the pitch helix, the audio manifold, spectral waves, a low-poly shoal.">
+<title>anubhav · feel your music</title>
+<meta name="description" content="Point it at whatever you're listening to and watch the music breathe. Nine ways of seeing sound: harmony bloom, phase portraits, Chladni sand, Fourier epicycles, the pitch helix, the audio manifold, spectral waves, a low-poly shoal, a neon spectral terrain.">
 <meta name="theme-color" content="#07060c">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌀</text></svg>">
 <style>
@@ -105,15 +105,15 @@
 
 <div id="home">
   <h1>anubhav<span class="hindi">अनुभव</span></h1>
-  <p class="tag">play your music anywhere — speakers, another tab, another app — and watch it breathe. nothing is recorded, nothing leaves this page.</p>
-  <p class="styles">eight ways of seeing: bloom · phase portrait · chladni sand · fourier circles · pitch helix · audio manifold · spectral waves · low-poly shoal</p>
+  <p class="tag">play your music anywhere: speakers, another tab, another app. watch it breathe. nothing is recorded, nothing leaves this page.</p>
+  <p class="styles">nine ways of seeing: bloom · phase portrait · chladni sand · fourier circles · pitch helix · audio manifold · spectral waves · low-poly shoal · neon terrain</p>
   <button class="src-btn" id="btnMic">
     <span class="ico">🎤</span>
-    <span>microphone<small>music on speakers — works on any device</small></span>
+    <span>microphone<small>music on speakers · works on any device</small></span>
   </button>
   <button class="src-btn" id="btnTab">
     <span class="ico">🖥️</span>
-    <span>tab / screen audio<small>music on headphones — pick the tab that's playing and tick “share tab audio”</small></span>
+    <span>tab / screen audio<small>music on headphones · pick the tab that's playing and tick “share tab audio”</small></span>
   </button>
   <div id="err"></div>
   <div class="foot">web audio api · everything stays on your device</div>
@@ -149,7 +149,7 @@
              spectral peaks, absolute-loudness gate (pause → black)
    styles  : bloom | scope (Takens phase portrait) | chladni sand |
              fourier epicycles | pitch helix | audio manifold |
-             spectral waves | low-poly shoal
+             spectral waves | low-poly shoal | spectral terrain
    ================================================================ */
 
 var TAU = Math.PI * 2;
@@ -207,7 +207,7 @@ function startMic() {
     startViz("microphone");
   }).catch(function (e) {
     errBox.textContent = e.name === "NotAllowedError"
-      ? "mic permission denied — allow it in the address bar and try again."
+      ? "mic permission denied. allow it in the address bar and try again."
       : "couldn't open the microphone (" + e.name + ")";
   });
 }
@@ -371,13 +371,13 @@ function analyse(now, fake) {
     var a2 = Math.max(1, Math.floor(lo / binHz)), b2 = Math.min(freqByte.length - 1, Math.floor(hi / binHz));
     var bi = a2, bv = -1;
     for (var k2 = a2; k2 <= b2; k2++) if (freqByte[k2] > bv) { bv = freqByte[k2]; bi = k2; }
-    if (bv < minV || S.gate < 0.2) return "—";
+    if (bv < minV || S.gate < 0.2) return "--";
     var midi = Math.round(12 * Math.log2(bi * binHz / 440)) + 69;
     return PC_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
   }
   S.bassNote = peakNote(40, 250, 34);
   S.leadNote = peakNote(500, 4200, 30);
-  var best = -1, bestName = "—", csum = 0;
+  var best = -1, bestName = "--", csum = 0;
   for (i = 0; i < 12; i++) csum += S.chroma[i];
   for (i = 0; i < 12; i++) {
     var maj = S.chroma[i] + S.chroma[(i + 4) % 12] + S.chroma[(i + 7) % 12];
@@ -385,7 +385,7 @@ function analyse(now, fake) {
     if (maj > best) { best = maj; bestName = PC_NAMES[i]; }
     if (min > best) { best = min; bestName = PC_NAMES[i] + "m"; }
   }
-  S.chord = (S.gate > 0.25 && csum > 0.4 && best / (csum + 1e-6) > 0.36) ? bestName : "—";
+  S.chord = (S.gate > 0.25 && csum > 0.4 && best / (csum + 1e-6) > 0.36) ? bestName : "--";
 }
 
 /* ---------------- style: bloom ---------------- */
@@ -1069,7 +1069,7 @@ function drawShoal(now) {
   var si, q;
 
   // ORDER: how locked-in the music is — a steady pulse plus a nameable chord
-  var ord = G * (0.25 + 0.45 * clamp(S.beatGaps.length / 6, 0, 1) + 0.30 * (S.chord !== "—" ? 1 : 0));
+  var ord = G * (0.25 + 0.45 * clamp(S.beatGaps.length / 6, 0, 1) + 0.30 * (S.chord !== "--" ? 1 : 0));
   shoal.ord += (ord - shoal.ord) * 0.025;
   var O = shoal.ord;
   var curA = Math.sin(now * 0.05) * 0.16;   // the current: rightward, slowly meandering
@@ -1199,6 +1199,117 @@ function drawShoal(now) {
   ctx.fillText("population ∝ band energy · order = rhythm + key lock · hold a fish, it fights back", 16, H - 16);
 }
 
+/* ---------------- style: spectral terrain ----------------
+   a scrolling neon wireframe heightfield: every ridge born at the
+   horizon is the live spectrum (log-frequency, mirrored so bass sits
+   on the centre crest) and rides toward you — the song piles up into
+   mountains. cyan at the horizon, magenta at your feet.             */
+var TER_COLS = 72, TER_ROWS = 42;
+var terra = null;
+function initTerrain() {
+  terra = { rows: [], off: 0, last: 0, n: 0 };
+  // flat ground until the music arrives
+  for (var i = 0; i < TER_ROWS; i++) terra.rows.push(new Float32Array(TER_COLS));
+}
+function terrainRow() {
+  var binHz = SR / FFT;
+  var raw = new Float32Array(TER_COLS), j;
+  terra.n++;
+  for (j = 0; j < TER_COLS; j++) {
+    var xr = Math.abs(j / (TER_COLS - 1) - 0.5) * 2;   // 0 centre → 1 edge
+    var f = 35 * Math.pow(9000 / 35, xr);              // bass on the centre crest
+    var v = freqByte[clamp(Math.round(f / binHz), 1, freqByte.length - 1)] / 255;
+    // deterministic crag: energy shakes loose rock, silence stays smooth
+    var rk = Math.sin(j * 12.9898 + terra.n * 78.233) * 43758.5453;
+    raw[j] = (Math.pow(v, 1.5) + v * 0.45 * (rk - Math.floor(rk))) * S.gate;
+  }
+  // light smoothing so ridges read as terrain, not comb teeth
+  var row = new Float32Array(TER_COLS);
+  for (j = 0; j < TER_COLS; j++)
+    row[j] = (raw[Math.max(0, j - 1)] + raw[j] * 2 + raw[Math.min(TER_COLS - 1, j + 1)]) * 0.25;
+  return row;
+}
+function drawTerrain(now) {
+  if (!terra) initTerrain();
+  var dt = clamp(now - terra.last, 0, 0.05);
+  terra.last = now;
+  var G = S.gate, GF = 0.08 + 0.92 * G;
+  var cx = W / 2, j;
+
+  // ridges ride toward you; louder music pushes the ground faster
+  terra.off += dt * (10 + S.rms * 16 + S.pulse * 4);
+  while (terra.off >= 1) {
+    terra.off -= 1;
+    terra.rows.push(terrainRow());
+    if (terra.rows.length > TER_ROWS + 1) terra.rows.shift();
+  }
+
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#050409";
+  ctx.fillRect(0, 0, W, H);
+
+  var horizon = H * 0.30;
+  var hg = ctx.createLinearGradient(0, horizon - H * 0.07, 0, horizon + H * 0.11);
+  hg.addColorStop(0, "rgba(110,220,255,0)");
+  hg.addColorStop(0.5, "rgba(110,220,255," + (0.10 * GF) + ")");
+  hg.addColorStop(1, "rgba(110,220,255,0)");
+  ctx.fillStyle = hg;
+  ctx.fillRect(0, horizon - H * 0.07, W, H * 0.18);
+
+  ctx.globalCompositeOperation = "lighter";
+  var len = terra.rows.length, prev = null;
+  for (var k = len - 1; k >= 0; k--) {                 // newest = at the horizon; paint far → near
+    var t = 1 - ((len - 1 - k) + terra.off) / TER_ROWS;
+    if (t < 0) { prev = null; continue; }
+    var ease = Math.pow(t, 1.35);                      // rows bunch up toward the horizon
+    var yB = H * 0.97 + (horizon - H * 0.97) * ease;
+    var spread = W * (1.24 - 0.55 * ease);             // mild perspective convergence
+    var amp = H * (0.44 - 0.30 * ease) * (1 + S.pulse * 0.15);
+    var row = terra.rows[k];
+    var cur = new Array(TER_COLS), eMax = 0;
+    for (j = 0; j < TER_COLS; j++) {
+      cur[j] = [cx + (j / (TER_COLS - 1) - 0.5) * spread, yB - row[j] * amp];
+      if (row[j] > eMax) eMax = row[j];
+    }
+    var hue = 187 + 113 * (1 - t);                     // cyan horizon → magenta foreground
+    var lig = 52 + eMax * 24 + S.pulse * 6;
+    if (prev) {                                        // triangulate against the farther ridge
+      ctx.strokeStyle = "hsla(" + hue + ",95%," + lig + "%," + ((0.06 + 0.22 * eMax) * GF) + ")";
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(prev[0][0], prev[0][1]);
+      for (j = 0; j < TER_COLS; j++) {
+        ctx.lineTo(cur[j][0], cur[j][1]);
+        if (j + 1 < TER_COLS) ctx.lineTo(prev[j + 1][0], prev[j + 1][1]);
+      }
+      ctx.stroke();
+    }
+    // the ridge itself: soft halo, then bright core
+    ctx.beginPath();
+    for (j = 0; j < TER_COLS; j++) {
+      if (j === 0) ctx.moveTo(cur[j][0], cur[j][1]); else ctx.lineTo(cur[j][0], cur[j][1]);
+    }
+    ctx.strokeStyle = "hsla(" + hue + ",95%," + lig + "%," + ((0.05 + 0.20 * eMax) * GF) + ")";
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+    ctx.strokeStyle = "hsla(" + hue + ",95%," + Math.min(88, lig + 16) + "%," + ((0.28 + 0.45 * eMax) * GF) + ")";
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+    // hot vertices on the peaks
+    for (j = 0; j < TER_COLS; j++) if (row[j] > 0.55) {
+      ctx.fillStyle = "hsla(" + hue + ",100%,85%," + (row[j] * 0.5 * GF) + ")";
+      ctx.fillRect(cur[j][0] - 1, cur[j][1] - 1, 2, 2);
+    }
+    prev = cur;
+  }
+
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "rgba(220,225,240," + (0.20 * G + 0.05) + ")";
+  ctx.font = "11px ui-monospace, Menlo, monospace";
+  ctx.textAlign = "left";
+  ctx.fillText("each ridge = |X(f)| at one instant · log-f, bass at the crest · time flows toward you", 16, H - 16);
+}
+
 /* ---------------- scientific readout, drawn over every style ---------------- */
 function drawReadout() {
   var a = 0.10 + 0.26 * S.gate;
@@ -1312,10 +1423,10 @@ function startIdle() { if (idleOn) return; idleOn = true; requestAnimationFrame(
 var STYLES = [
   { key: "bloom",    draw: drawBloom,    init: function () { parts.length = 0; },
     title: "HARMONIC BLOOM · CHROMAGRAM(12) · LIVE",
-    sub: "harmony as light — 12 petals, one per note" },
+    sub: "harmony as light: 12 petals, one per note" },
   { key: "scope",    draw: drawScope,    init: function () {},
     title: "PHASE PORTRAIT · x(t) ⊗ x(t−τ) · TAKENS EMBEDDING",
-    sub: "phase portrait — the signal folded onto itself" },
+    sub: "phase portrait: the signal folded onto itself" },
   { key: "chladni",  draw: drawChladni,  init: initSand,
     title: "CHLADNI PLATE · STANDING WAVE NODES · 2600 GRAINS",
     sub: "sand settles where the plate is still" },
@@ -1324,16 +1435,19 @@ var STYLES = [
     sub: "your song, as a sum of rotating circles" },
   { key: "helix",    draw: drawHelix,    init: function () {},
     title: "PITCH HELIX · log₂(f/55) · OCTAVE EQUIVALENCE",
-    sub: "one turn per octave — every C on one ray" },
+    sub: "one turn per octave · every C on one ray" },
   { key: "manifold", draw: drawManifold, init: initManifold,
     title: "SPATIOTEMPORAL AUDIO MANIFOLD · (CENTROID, RMS, FLUX) → R³ · LIVE",
     sub: "the song walking through its own feature space" },
   { key: "waves",    draw: drawWaves,    init: function () {},
     title: "SPECTRAL WAVES · 5 ROLE LANES · NOTE + CHORD TRACKING · LIVE",
-    sub: "sub · bass · chords · lead · air — each named, each its own colour" },
+    sub: "sub · bass · chords · lead · air, each named, each its own colour" },
   { key: "shoal",    draw: drawShoal,    init: initShoal,
     title: "LOW-POLY SHOAL · 7 SPECIES · POPULATION ∝ BAND ENERGY · ORDER FROM CHAOS · LIVE",
-    sub: "every voice is a species — when the music locks in, the shoal sorts into a living spectrum. hold a fish, it fights back" }
+    sub: "every voice is a species: when the music locks in, the shoal sorts into a living spectrum. hold a fish, it fights back" },
+  { key: "terrain",  draw: drawTerrain,  init: initTerrain,
+    title: "SPECTRAL TERRAIN · SCROLLING |X(f)| HEIGHTFIELD · LOG-f RIDGES · LIVE",
+    sub: "the spectrum extruded into neon mountains: every ridge is one instant of the song, riding toward you" }
 ];
 var styleIdx = 0;
 try {
@@ -1404,7 +1518,7 @@ if (!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) || isMob
 }
 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
   document.getElementById("btnMic").disabled = true;
-  errBox.textContent = "this browser can't capture audio — try a current Chrome / Brave / Safari / Firefox over https.";
+  errBox.textContent = "this browser can't capture audio. try a current Chrome / Brave / Safari / Firefox over https.";
 }
 
 // hud auto-fade; any pointer move brings it back
@@ -1479,7 +1593,7 @@ document.getElementById("snapShare").addEventListener("click", function () {
    --virtual-time-budget, so these render synchronously, no rAF)
    #shot=home                 → landing screen (static)
    #shot=viz                  → visualizer on synthetic music
-   #shot=viz&style=<key>      → specific style (bloom|scope|chladni|fourier|helix|manifold|waves|shoal)
+   #shot=viz&style=<key>      → specific style (bloom|scope|chladni|fourier|helix|manifold|waves|shoal|terrain)
    …&snap=1                   → also open the snap preview modal
    ================================================================ */
 (function () {
@@ -1497,6 +1611,7 @@ document.getElementById("snapShare").addEventListener("click", function () {
   }
   var want = STYLES.findIndex(function (s) { return s.key === m[2]; });
   home.classList.add("hidden");
+  home.style.display = "none"; // the .5s opacity fade may not finish under virtual time
   hud.classList.add("on");
   srcLabel.textContent = "listening: demo";
   var fake = {

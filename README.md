@@ -13,7 +13,7 @@ Realtime music visualizer — play your music anywhere (Spotify, YouTube, anothe
 
 Nothing is recorded and nothing leaves the page — the stream feeds a Web Audio `AnalyserNode` and dies there.
 
-## Eight styles (cycle with the ◐ pill, keys 1–8, or ←/→)
+## Nine styles (cycle with the ◐ pill, keys 1–9, or ←/→)
 
 1. **bloom** — 12 chroma petals (one per pitch class, C at top), bass-breathing orb, waveform ring, beat particle bursts; dominant pitch class steers the page hue
 2. **scope** — Takens phase portrait: `x(t)` vs `x(t−τ)`, the signal folded onto itself; phosphor persistence, B&W
@@ -23,6 +23,8 @@ Nothing is recorded and nothing leaves the page — the stream feeds a Web Audio
 6. **manifold** — (spectral centroid, RMS, flux) traced as a wireframe trajectory through R³, axes auto-normalised to the recent range, numeric vertex labels — same idea as the vocal manifold on anime-voice-fights
 7. **waves** — five instrument-role bands (SUB · BASS · CHORDS · LEAD · AIR) as overlapping flame-like strands: three strokes per band (thick-soft → thin-bright), independent flicker, log-frequency spectrum shaping each ribbon; annotation column names the bass note, lead note, and the chord (24-triad chromagram template match). Honest framing: frequency roles, not ML source separation
 8. **shoal** — low-poly ocean (flat faceted triangles, Bryan-James-poster style): every voice is a species — whale=SUB, shark=BASS, salmon=CHORDS, fish=LEAD, tiny fish=AIR, jellyfish=sustained pads (tonal + low flux), squid=transients (they jet on flux spikes) — and each species' population tracks its band energy through a peak-hold envelope (a pulsing kick keeps its whale). The order-from-chaos mechanic: an ORDER parameter (rhythm lock + a nameable chord) blends each fish's steering between a noise flow field (chaos) and its depth lane — when the song locks in, the shoal sorts itself into a living spectrum, low voices deep, high voices near the light. Touch/click a fish to hold it: it thrashes with growing panic and slips free after a couple of seconds (or when released) with a getaway dart. Silence empties the ocean
+
+9. **terrain**: a scrolling neon wireframe heightfield (the synthwave mountain-mesh look). Every ridge born at the horizon is the live log-frequency spectrum, mirrored so bass sits on the centre crest, and it rides toward the viewer, so the mountains are the last few seconds of the song piling up. Cyan at the horizon shading to magenta in the foreground, crag noise scaled by energy (silence stays smooth and flat), scroll speed pushed by RMS and beats, peaks get hot white vertices.
 
 Every style carries a scientific readout (top-left): RMS dBFS, spectral centroid, flux, detected key, live BPM estimate (median of recent beat gaps), gate level.
 
@@ -40,7 +42,7 @@ The landing screen is alive before any audio starts: slow aurora-borealis curtai
 
 - `#shot=home` — landing screen (renders the aurora synchronously)
 - `#shot=viz` — visualizer driven by ~3.5 s of synthetic music (120 bpm kick + A-minor chord + drifting spectral tail), deterministic (seeded RNG)
-- `#shot=viz&style=<key>` — specific style: `bloom|scope|chladni|fourier|helix|manifold|waves|shoal`
+- `#shot=viz&style=<key>` — specific style: `bloom|scope|chladni|fourier|helix|manifold|waves|shoal|terrain`
 - `…&snap=1` — also opens the 📸 snap preview modal on the rendered frame
 
 A late headless resize event wipes the canvas after the script runs — `resize()` skips no-op resizes and re-renders the shot frame, so screenshots survive it.
