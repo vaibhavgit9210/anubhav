@@ -151,6 +151,8 @@
   @media (prefers-reduced-motion: reduce) {
     .src-btn:active, #hud .grp button:active, #snapmodal button:active { transform: none; }
   }
+  /* canvas text keeps the browser's default smoothing: body's antialiased would thin it on macOS */
+  canvas{-webkit-font-smoothing:auto}
 </style>
 </head>
 <body>
