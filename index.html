@@ -6,14 +6,25 @@
 <title>anubhav · feel your music</title>
 <meta name="description" content="Point it at whatever you're listening to and watch the music breathe. Nine ways of seeing sound: harmony bloom, phase portraits, Chladni sand, Fourier epicycles, the pitch helix, the audio manifold, spectral waves, a low-poly shoal, a neon spectral terrain.">
 <meta name="theme-color" content="#07060c">
+<meta name="color-scheme" content="dark">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌀</text></svg>">
 <style>
+  :root {
+    /* glass, the macOS 26+ material, tinted with the page's violet night */
+    --glass: rgba(20,17,34,.55); --glass-solid: rgba(20,17,34,.86);
+    --blur: blur(24px) saturate(170%);
+    --rim: inset 0 .5px 0 rgba(255,255,255,.2), inset 0 0 0 .5px rgba(255,255,255,.07);
+    --drop: 0 10px 30px rgba(0,0,0,.32), 0 1px 3px rgba(0,0,0,.22);
+    --ring: 0 0 0 2px rgba(189,147,249,.9);
+    color-scheme: dark;
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; }
   body {
     background: #07060c;
     color: #e8e4f0;
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    -webkit-font-smoothing: antialiased;
     -webkit-user-select: none; user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
@@ -37,16 +48,20 @@
   #home .hindi { display: block; font-size: .42em; opacity: .85; letter-spacing: .3em; margin-top: 2px; }
   #home p.tag { max-width: 520px; opacity: .65; font-size: clamp(13px, 3.4vw, 15px); line-height: 1.6; }
   #home p.styles { max-width: 520px; opacity: .4; font-size: clamp(11px, 2.8vw, 12px); letter-spacing: .06em; margin-bottom: 14px; }
+  /* glass over the aurora: the curtains frost behind the card, a violet hairline rims it */
   .src-btn {
-    appearance: none; border: 1px solid rgba(189,147,249,.35); border-radius: 14px;
-    background: rgba(189,147,249,.08); color: #e8e4f0;
+    appearance: none; -webkit-appearance: none; border: 0; border-radius: 22px;
+    background: rgba(38,30,62,.5); color: #e8e4f0;
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+    box-shadow: inset 0 .5px 0 rgba(255,255,255,.2), inset 0 0 0 .5px rgba(189,147,249,.42), var(--drop);
     font: inherit; font-size: clamp(15px, 4vw, 17px);
     padding: 16px 26px; min-width: min(340px, 82vw);
-    cursor: pointer; transition: background .2s, border-color .2s, transform .1s;
+    cursor: pointer; transition: background-color .2s ease-out, box-shadow .2s ease-out, transform .15s ease-out;
     display: flex; align-items: center; gap: 14px; text-align: left;
   }
-  .src-btn:hover { background: rgba(189,147,249,.18); border-color: rgba(189,147,249,.7); }
-  .src-btn:active { transform: scale(.98); }
+  .src-btn:hover { background: rgba(62,48,102,.58); box-shadow: inset 0 .5px 0 rgba(255,255,255,.24), inset 0 0 0 .5px rgba(189,147,249,.8), var(--drop); }
+  .src-btn:active { transform: scale(.97); }
+  .src-btn:focus-visible { outline: none; box-shadow: inset 0 .5px 0 rgba(255,255,255,.24), inset 0 0 0 .5px rgba(189,147,249,.8), var(--ring), var(--drop); }
   .src-btn .ico { font-size: 26px; }
   .src-btn small { display: block; opacity: .55; font-size: .74em; margin-top: 3px; line-height: 1.4; }
   #err {
@@ -56,28 +71,50 @@
   #home .foot { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); font-size: 11px; opacity: .35; letter-spacing: .05em; }
 
   /* ---------- in-viz chrome ---------- */
+  /* floating glass toolbar: the source on its own capsule, the tools grouped on another */
   #hud {
     position: fixed; top: 0; left: 0; right: 0; z-index: 10;
-    display: none; align-items: center; gap: 10px;
-    padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+    display: none; align-items: center; gap: 8px;
+    padding: calc(10px + env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 10px max(14px, env(safe-area-inset-left));
     transition: opacity .4s; font-size: 12px;
   }
   #hud.on { display: flex; }
   #hud.faded { opacity: 0; pointer-events: none; }
-  #hud .pill {
-    background: rgba(7,6,12,.55); border: 1px solid rgba(232,228,240,.15);
-    border-radius: 999px; padding: 7px 14px; backdrop-filter: blur(6px);
+  #hud .pill, #hud .grp {
+    height: 36px; border-radius: 999px;
+    background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+    box-shadow: var(--rim), var(--drop);
   }
-  #hud button.pill { color: #e8e4f0; font: inherit; cursor: pointer; appearance: none; }
-  #hud button.pill:hover { border-color: rgba(232,228,240,.5); }
-  #srcLabel { opacity: .8; }
+  #hud .pill {
+    display: block; min-width: 0; padding: 0 15px; line-height: 36px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #srcLabel { color: rgba(232,228,240,.8); }
   #hud .gap { flex: 1; }
+  #hud .grp { display: flex; align-items: center; gap: 2px; padding: 3px; flex: none; }
+  #hud .grp button {
+    height: 30px; min-width: 30px; padding: 0 12px; border: 0; border-radius: 999px;
+    background: transparent; color: #e8e4f0; font: inherit; white-space: nowrap; cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+    transition: background-color .15s ease-out, transform .15s ease-out;
+  }
+  #hud .grp button:hover { background: rgba(255,255,255,.08); }
+  #hud .grp button:active { transform: scale(.97); }
+  #hud .grp button:focus-visible { outline: none; box-shadow: var(--ring); }
+  /* phones: tools go icon-only (they keep their names for screen readers) so the bar fits one row, clear of the readout */
+  @media (max-width: 560px) {
+    #hud { font-size: 11px; gap: 6px; }
+    #hud .pill { padding: 0 12px; }
+    #hud .grp button { padding: 0 9px; }
+    #hud .grp .lbl { display: none; }
+  }
 
   #toast {
     position: fixed; left: 50%; bottom: 16%; transform: translateX(-50%);
     z-index: 11; pointer-events: none; text-align: center;
-    background: rgba(7,6,12,.6); border: 1px solid rgba(232,228,240,.18);
-    border-radius: 14px; padding: 10px 20px; backdrop-filter: blur(8px);
+    background: var(--glass-solid); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+    box-shadow: var(--rim), 0 14px 44px rgba(0,0,0,.45);
+    border-radius: 20px; padding: 11px 20px;
     opacity: 0; transition: opacity .4s; max-width: 86vw;
   }
   #toast.show { opacity: 1; }
@@ -85,19 +122,35 @@
   #toast span { display: block; font-size: 11px; opacity: .6; margin-top: 4px; line-height: 1.5; }
 
   /* snap: captured-frame preview */
-  #snapmodal { position: fixed; inset: 0; z-index: 30; background: rgba(3,4,10,.82);
+  #snapmodal { position: fixed; inset: 0; z-index: 30; background: rgba(3,4,10,.7);
+    -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
     display: none; align-items: center; justify-content: center; flex-direction: column;
-    gap: 14px; padding: 20px; }
+    gap: 14px;
+    padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
   #snapmodal.show { display: flex; }
   #snapmodal img { max-width: min(92vw, 720px); max-height: 68vh;
-    border: 1px solid rgba(232,228,240,.25); border-radius: 10px; }
+    border-radius: 16px; box-shadow: 0 0 0 .5px rgba(232,228,240,.3), 0 24px 70px rgba(0,0,0,.55); }
   #snapmodal .row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-  #snapmodal button { color: #e8e4f0; font: inherit; cursor: pointer; appearance: none;
-    background: rgba(10,12,24,.75); border: 1px solid rgba(232,228,240,.22);
-    border-radius: 999px; padding: 8px 16px; }
-  #snapmodal button:hover { border-color: rgba(232,228,240,.5); }
+  #snapmodal button { color: #e8e4f0; font: inherit; cursor: pointer; appearance: none; -webkit-appearance: none;
+    background: var(--glass); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+    border: 0; box-shadow: var(--rim), var(--drop);
+    border-radius: 999px; padding: 10px 18px;
+    transition: background-color .15s ease-out, transform .15s ease-out; }
+  #snapmodal button:hover { background: rgba(52,45,80,.62); }
+  #snapmodal button:active { transform: scale(.97); }
+  #snapmodal button:focus-visible { outline: none; box-shadow: var(--rim), var(--ring), var(--drop); }
   #snaphint { color: rgba(232,228,240,.55); font-size: 11px; }
   @media (hover: hover) { #snaphint { display: none; } }
+  /* Reduce Transparency: solid surfaces, no blur */
+  @media (prefers-reduced-transparency: reduce) {
+    :root { --glass: #18142a; --glass-solid: #18142a; }
+    .src-btn { background: #221a38; }
+    #snapmodal { background: rgba(3,4,10,.94); }
+    .src-btn, #hud .pill, #hud .grp, #toast, #snapmodal, #snapmodal button { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .src-btn:active, #hud .grp button:active, #snapmodal button:active { transform: none; }
+  }
 </style>
 </head>
 <body>
@@ -122,10 +175,12 @@
 <div id="hud">
   <span class="pill" id="srcLabel"></span>
   <span class="gap"></span>
-  <button class="pill" id="btnStyle">◐ bloom</button>
-  <button class="pill" id="btnSnap">📸 snap</button>
-  <button class="pill" id="btnFs">⛶ fullscreen</button>
-  <button class="pill" id="btnStop">✕ stop</button>
+  <div class="grp">
+    <button id="btnStyle">◐ bloom</button>
+    <button id="btnSnap" aria-label="snap">📸<span class="lbl"> snap</span></button>
+    <button id="btnFs" aria-label="fullscreen">⛶<span class="lbl"> fullscreen</span></button>
+    <button id="btnStop" aria-label="stop">✕<span class="lbl"> stop</span></button>
+  </div>
 </div>
 
 <div id="toast"><b id="toastName"></b><span id="toastSub"></span></div>
